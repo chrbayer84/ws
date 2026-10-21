@@ -266,8 +266,6 @@ void MainWindow::renderJttyQsoLines()
 
 bool MainWindow::rtty_decode(int k, int istart0, int istop)
 {
-  (void)istart0;
-
   auto jttyLineDateTimeUtc = [this, k] (float tsync) -> QDateTime {
     if (m_diskData && m_UTCdiskDateTime.isValid()) {
       return m_UTCdiskDateTime.addMSecs(qRound64(1000.0 * tsync)).toUTC();
@@ -302,13 +300,10 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   int nfa = m_wideGraph->nStartFreq();
   int nfb = m_wideGraph->Fmax();
 
+  qint64 firstSearch = istart0 >= 0 ? istart0 : 0;
   qint64 stopSearch = istop >= 0 ? istop : k;
   
-  qint64 last_k = m_rttyDecoder.nextRequiredSample();
-  if (k > last_k) {
-    int count = k - last_k;
-    m_rttyDecoder.process(dec_data.d2 + last_k, count, last_k, stopSearch, 1000, nfa, nfb, f0, ftol);
-  }
+  m_rttyDecoder.process(dec_data.d2, k, firstSearch, stopSearch, 1000, nfa, nfb, f0, ftol);
   
   QVector<Jtty::MessageUpdate> updates = m_rttyDecoder.takeUpdates();
 
@@ -608,103 +603,40 @@ void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal
     return;
   }
 
-  if (ui->cbLowerCase->isChecked()) message = message.toLower();
-
   if (isFinal && !message.isEmpty()) {
     message += "\r\n ";
   }
 
-  float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
+  Jtty::TransmitSegment segment;
+  segment.text = message;
+  segment.frequency = ui->TxFreqSpinBox_2->value();
 
-  if (!m_rttyTxModem) {
-    m_rttyTxModem.reset(new Rtty::RttyModem());
-  }
-
-  bool const newSession = !m_jttyTxActive;
-  if (newSession) {
-    advanceJttyTxQueueEpoch();
-    m_jttyTxUsesTciAudio = m_tci_audio;
-    m_rttyTxModem->txInit();
-  }
-  bool const useTciAudio = m_jttyTxUsesTciAudio;
-
-  std::vector<int16_t> wave;
-  if (newSession) {
-    wave = m_rttyTxModem->modulatePreamble(4, f0);
-  }
   if (message.isEmpty()) {
-    std::vector<int16_t> idle = m_rttyTxModem->modulateIdle(f0);
-    wave.insert(wave.end(), idle.begin(), idle.end());
+    segment.rttySampleCount = 7920; 
   } else {
-    std::vector<int16_t> textWave = m_rttyTxModem->modulateText(message.toStdString(), f0);
-    wave.insert(wave.end(), textWave.begin(), textWave.end());
+    segment.rttySampleCount = static_cast<qint64>(message.length()) * 7920; 
   }
 
-  QVector<qint16> samples;
-  samples.reserve(wave.size());
-  for (int16_t val : wave) {
-    samples.append(val);
-  }
+  QVector<Jtty::TransmitSegment> segments;
+  segments.append(std::move(segment));
 
-  if (samples.isEmpty()) {
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
-    return;
-  }
-
-  if (newSession) {
-    if (useTciAudio) {
-      Q_EMIT m_config.transceiver_clear_jtty_pcm(m_jttyTxQueueEpoch);
-    } else {
-      m_jttyTxQueue->clear(m_jttyTxQueueEpoch);
-    }
-  }
-
-  bool enqueued {false};
-  TxAudioQueueProgress enqueueProgress;
-  if(useTciAudio) {
-    if (samples.size () <= TxAudioQueue::defaultCapacity ()) {
-      QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
-                       samples.size () * int (sizeof (qint16)));
-      qint64 const enqueueId = ++m_jttyTciEnqueueId;
-      m_pendingJttyTciMessages.append(PendingJttyTciMessage {
-        m_jttyTxQueueEpoch,
-        enqueueId,
-        requestId,
-        samples.size (),
-        message,
-        newSession
-      });
-      m_jttyTxActive = true;
-      Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
-                                                   enqueueId);
-      return;
-    } else {
-      LOG_WARN("RTTY TCI transmit FIFO capacity precheck failed; rejecting PCM enqueue");
-      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
-    }
-  } else {
-    auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
-    enqueued = result.accepted;
-    enqueueProgress = result.progress;
-    if (!enqueued) {
-      LOG_WARN("RTTY transmit FIFO overflow; rejecting PCM enqueue");
-    }
-  }
-
-  if (!enqueued) {
-    if (!useTciAudio) {
-      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
-    }
-    if (newSession) {
-      advanceJttyTxQueueEpoch();
-    }
-    return;
-  }
-
-  completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
+  enqueueJttySegments(requestId, std::move(segments));
 }
 
-void MainWindow::execute_jtty_tx(qint64 requestId, QString message)
+void MainWindow::enqueueJttySegments(
+    qint64 requestId, QVector<Jtty::TransmitSegment> segments)
+{
+  if (!isConversationalMode() || m_closing || jttyDrainInProgress()
+      || segments.isEmpty()) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
+    return;
+  }
+  m_jttyTransmitQueue.append(requestId, std::move(segments));
+  updateJttySendButton();
+  feedJttyTransmitQueue();
+}
+
+void MainWindow::execute_jitty_tx(qint64 requestId, QString message)
 {
   int itone[944];
   // Captured before anything below can change m_jttyTxActive: true means
@@ -1667,52 +1599,6 @@ void MainWindow::finishJttyDecodeUi()
   dec_data.params.ndiskdat=0;
   ui->DecodeButton->setChecked (false);
   m_startAnother=m_loopall;
-}
-
-
-
-void MainWindow::on_actionRTTY_triggered()
-{
-  if (m_auto) auto_tx_mode (false);
-  
-  on_stopButton_clicked();
-  m_mode = "RTTY";
-  ui->actionRTTY->setChecked(true);
-  switch_mode (Modes::RTTY);
-  WSPR_config(false);
-  VHF_features_enabled(false);
-  m_wideGraph->setMode(m_mode);
-  m_fastGraph->hide();
-  m_wideGraph->showNormal();
-  ui->cbAutoSeq->setChecked(false);
-  m_bFastMode=false;
-  m_bFast9=false;
-  m_nsps=6912;
-  m_FFTSize = m_nsps / 2;
-  if (m_tci_audio) Q_EMIT m_config.transceiver_blocksize (m_FFTSize);
-  else Q_EMIT FFTSize (m_FFTSize);
-  m_TRperiod=180;
-  m_hsymStop=620;
-  m_wideGraph->setPeriod(m_TRperiod,m_nsps);
-  if (!m_tci_audio) {
-    m_modulator->setTRPeriod(m_TRperiod);
-    m_detector->setTRPeriod(m_TRperiod);
-  }
-  ui->TxFreqSpinBox_2->setValue(1500);
-  ui->RxFreqSpinBox_2->setValue(1500);
-  ui->sbFtol_2->values ({2, 5, 10, 20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500});
-  m_wideGraph->setRxFreq(ui->RxFreqSpinBox_2->value());
-  m_wideGraph->setTol(ui->sbFtol_2->value());
-  updateJttyDecodeHeadings();
-  ui->lh_decodes_title_label->setText(tr ("All Decodes"));
-  ui->rh_decodes_title_label->setText(tr ("QSO Frequency"));
-  displayWidgets(nWidgets("11111100010011100001000000010000000000"));
-  ui->actionMediumDecode->setChecked(true);
-  ui->actionQuickDecode->setEnabled(false);
-  ui->actionDeepestDecode->setEnabled(false);
-  setup_status_bar (false);
-  monitor(true);
-  statusChanged();
 }
 
 void MainWindow::on_actionJTTY_triggered()

@@ -596,6 +596,8 @@ void MainWindow::submitJttyDraft(QString message)
 
 
 
+
+
 void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal)
 {
   if (m_mode != "RTTY") {
@@ -603,38 +605,94 @@ void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal
     return;
   }
 
+  if (ui->cbLowerCase->isChecked()) message = message.toLower();
+
   if (isFinal && !message.isEmpty()) {
     message += "\r\n ";
   }
 
-  Jtty::TransmitSegment segment;
-  segment.text = message;
-  segment.frequency = ui->TxFreqSpinBox_2->value();
+  float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
 
-  if (message.isEmpty()) {
-    segment.rttySampleCount = 7920; 
-  } else {
-    segment.rttySampleCount = static_cast<qint64>(message.length()) * 7920; 
+  if (!m_rttyTxModem) {
+    m_rttyTxModem.reset(new Rtty::RttyModem());
   }
 
-  QVector<Jtty::TransmitSegment> segments;
-  segments.append(std::move(segment));
+  // RTTY must always start a fresh session - it cannot share queue state with JTTY
+  // because the modulation schemes are completely different (AFSK vs MFSK)
+  advanceJttyTxQueueEpoch();
+  m_jttyTxUsesTciAudio = m_tci_audio;
+  m_rttyTxModem->txInit();
+  bool const useTciAudio = m_jttyTxUsesTciAudio;
 
-  enqueueJttySegments(requestId, std::move(segments));
-}
+  // Always clear the queue for RTTX to ensure no stale JTTY samples remain
+  if (useTciAudio) {
+    Q_EMIT m_config.transceiver_clear_jtty_pcm(m_jittyTxQueueEpoch);
+  } else {
+    m_jttyTxQueue->clear(m_jittyTxQueueEpoch);
+  }
 
-void MainWindow::enqueueJttySegments(
-    qint64 requestId, QVector<Jtty::TransmitSegment> segments)
-{
-  if (!isConversationalMode() || m_closing || jttyDrainInProgress()
-      || segments.isEmpty()) {
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
+  std::vector<int16_t> wave;
+  wave = m_rttyTxModem->modulatePreamble(4, f0);
+  if (message.isEmpty()) {
+    std::vector<int16_t> idle = m_rttyTxModem->modulateIdle(f0);
+    wave.insert(wave.end(), idle.begin(), idle.end());
+  } else {
+    std::vector<int16_t> textWave = m_rttyTxModem->modulateText(message.toStdString(), f0);
+    wave.insert(wave.end(), textWave.begin(), textWave.end());
+  }
+
+  QVector<qint16> samples;
+  samples.reserve(wave.size());
+  for (int16_t val : wave) {
+    samples.append(val);
+  }
+
+  if (samples.isEmpty()) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
     return;
   }
-  m_jttyTransmitQueue.append(requestId, std::move(segments));
-  updateJttySendButton();
-  feedJttyTransmitQueue();
-}
+
+  bool enqueued {false};
+  TxAudioQueueProgress enqueueProgress;
+  if(useTciAudio) {
+    if (samples.size () <= TxAudioQueue::defaultCapacity ()) {
+      QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
+                       samples.size () * int (sizeof (qint16)));
+      qint64 const enqueueId = ++m_jttyTciEnqueueId;
+      m_pendingJttyTciMessages.append(PendingJttyTciMessage {
+        m_jttyTxQueueEpoch,
+        enqueueId,
+        requestId,
+        samples.size (),
+        message,
+        true
+      });
+      m_jttyTxActive = true;
+      Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jittyTxQueueEpoch,
+                                                   enqueueId);
+      return;
+    } else {
+      LOG_WARN("RTTY TCI transmit FIFO capacity precheck failed; rejecting PCM enqueue");
+      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    }
+  } else {
+    auto const result = m_jttyTxQueue->enqueue(samples, m_jittyTxQueueEpoch);
+    enqueued = result.accepted;
+    enqueueProgress = result.progress;
+    if (!enqueued) {
+      LOG_WARN("RTTY transmit FIFO overflow; rejecting PCM enqueue");
+    }
+  }
+
+  if (!enqueued) {
+    if (!useTciAudio) {
+      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    }
+    return;
+  }
+
+  c
+
 
 void MainWindow::execute_jitty_tx(qint64 requestId, QString message)
 {
@@ -671,106 +729,9 @@ void MainWindow::execute_jitty_tx(qint64 requestId, QString message)
   }
 
   message = QString::fromLatin1(transmitFrame).trimmed();
-  execute_jtty_tones(requestId, message, itone, nsym);
+  execute_jitty_tones(requestId, message, itone, nsym);
 }
 
-
-
-
-
-void MainWindow::execute_rtty_tones(qint64 requestId, QString const& message, int frequency)
-{
-  if ((m_jttyTxActive && jttyTxCommittedSamples() <= 0)) {
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
-    return;
-  }
-
-  float f0 = (frequency >= 0 ? frequency : ui->TxFreqSpinBox_2->value()) - m_XIT;
-
-  if (!m_rttyTxModem) {
-    m_rttyTxModem = std::make_unique<Rtty::RttyModem>();
-  }
-
-  bool const newSession = !m_jttyTxActive;
-  if (newSession) {
-    advanceJttyTxQueueEpoch();
-    m_jttyTxUsesTciAudio = m_tci_audio;
-  }
-  bool const useTciAudio = m_jttyTxUsesTciAudio;
-
-  if (newSession) {
-    if (useTciAudio) {
-      Q_EMIT m_config.transceiver_clear_jtty_pcm(m_jttyTxQueueEpoch);
-    } else {
-      m_jttyTxQueue->clear(m_jttyTxQueueEpoch);
-    }
-    m_rttyTxModem->txInit();
-  }
-
-  std::vector<int16_t> wave;
-  if (newSession) {
-    wave = m_rttyTxModem->modulatePreamble(4, f0);
-  }
-  if (message.isEmpty()) {
-    std::vector<int16_t> idle = m_rttyTxModem->modulateIdle(f0);
-    wave.insert(wave.end(), idle.begin(), idle.end());
-  } else {
-    std::vector<int16_t> textWave = m_rttyTxModem->modulateText(message.toStdString(), f0);
-    wave.insert(wave.end(), textWave.begin(), textWave.end());
-  }
-
-  QVector<qint16> samples;
-  samples.reserve(wave.size());
-  for (int16_t val : wave) {
-    samples.append(val);
-  }
-
-  if (samples.isEmpty()) {
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
-    return;
-  }
-
-  if (samples.size() > TxAudioQueue::defaultCapacity()) {
-    LOG_WARN("RTTY transmit FIFO capacity precheck failed; rejecting PCM enqueue");
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
-    return;
-  }
-
-  bool enqueued {false};
-  TxAudioQueueProgress enqueueProgress;
-  
-  if (useTciAudio) {
-    if (samples.size () <= TxAudioQueue::defaultCapacity ()) {
-      QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
-                       samples.size () * int (sizeof (qint16)));
-      qint64 const enqueueId = ++m_jttyTciEnqueueId;
-      m_pendingJttyTciMessages.append(PendingJttyTciMessage {
-        m_jttyTxQueueEpoch,
-        enqueueId,
-        requestId,
-        samples.size (),
-        message,
-        newSession
-      });
-      m_jttyTxActive = true;
-      Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
-                                                   enqueueId);
-      enqueued = true;
-    }
-  } else {
-    auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
-    enqueued = result.accepted;
-    enqueueProgress = result.progress;
-  }
-
-  if (!enqueued) {
-    if (!useTciAudio) Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
-    if (newSession) advanceJttyTxQueueEpoch();
-    return;
-  }
-
-  completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
-}
 
 void MainWindow::execute_jtty_tones(qint64 requestId, QString const& message,
                                     int const itone[], int nsym)
@@ -844,7 +805,7 @@ void MainWindow::execute_jtty_tones(qint64 requestId, QString const& message,
       Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
     }
   } else {
-    auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
+    auto const result = m_jittyTxQueue->enqueue(samples, m_jittyTxQueueEpoch);
     enqueued = result.accepted;
     enqueueProgress = result.progress;
     if (!enqueued) {
@@ -862,8 +823,11 @@ void MainWindow::execute_jtty_tones(qint64 requestId, QString const& message,
     return;
   }
 
-  completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
+  completeJittyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
 }
+
+
+
 
 void MainWindow::advanceJttyTxQueueEpoch()
 {
