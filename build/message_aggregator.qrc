@@ -1,6 +1,0 @@
-<!DOCTYPE RCC>
-<RCC version="1.0">
-  <qresource>
-    <file alias="/qss/default.qss">/home/christian/temp/wsjtx/build/ws/UDPExamples/qss/default.qss</file>
-  </qresource>
-</RCC>

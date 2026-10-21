@@ -1,4 +1,0 @@
-test_rtty_baudot 3 0.00208936
-test_rtty_modem 3 0.0168501
-test_tx_start_policy 3 0.00854156
----

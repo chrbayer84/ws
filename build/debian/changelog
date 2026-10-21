@@ -1,6 +1,0 @@
-wsjtx (3.2.1) experimental; urgency=low
-
-  * wsjtx Debian maintainer and upstream author are identical.
-    Therefore see also normal changelog file for Debian changes.
-
- -- dg2ycb@gmx.de  Wed, 21 Oct 2026 14:39:07 +0000
