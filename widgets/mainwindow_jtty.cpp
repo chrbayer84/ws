@@ -266,6 +266,8 @@ void MainWindow::renderJttyQsoLines()
 
 bool MainWindow::rtty_decode(int k, int istart0, int istop)
 {
+  (void)istart0;
+
   auto jttyLineDateTimeUtc = [this, k] (float tsync) -> QDateTime {
     if (m_diskData && m_UTCdiskDateTime.isValid()) {
       return m_UTCdiskDateTime.addMSecs(qRound64(1000.0 * tsync)).toUTC();
@@ -300,10 +302,13 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   int nfa = m_wideGraph->nStartFreq();
   int nfb = m_wideGraph->Fmax();
 
-  qint64 firstSearch = istart0 >= 0 ? istart0 : 0;
   qint64 stopSearch = istop >= 0 ? istop : k;
   
-  m_rttyDecoder.process(dec_data.d2, k, firstSearch, stopSearch, 1000, nfa, nfb, f0, ftol);
+  qint64 last_k = m_rttyDecoder.nextRequiredSample();
+  if (k > last_k) {
+    int count = k - last_k;
+    m_rttyDecoder.process(dec_data.d2 + last_k, count, last_k, stopSearch, 1000, nfa, nfb, f0, ftol);
+  }
   
   QVector<Jtty::MessageUpdate> updates = m_rttyDecoder.takeUpdates();
 
