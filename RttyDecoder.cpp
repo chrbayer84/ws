@@ -71,20 +71,24 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
       qsoText_ += QString::fromStdString(newText);
       qsoIdleFrames_ = 0;
       
+      bool const hasNewline = qsoText_.contains('\n') || qsoText_.contains('\r');
       Jtty::MessageUpdate update;
       update.messageId = qsoMessageId_;
       update.frequency = centerFrequency;
       update.text = qsoText_;
       update.sequenceStart = qsoStartSeconds_;
-      // update.latestSeconds = currentSeconds;
-      update.complete = false;
+      update.complete = hasNewline;
       update.snr = static_cast<int>(qsoModem_.lastSnr());
       pendingUpdates_.push_back(update);
+      if (hasNewline) {
+        qsoActive_ = false;
+        qsoText_.clear();
+      }
     }
   } else if (qsoActive_) {
     qsoIdleFrames_++;
-    // If no text for ~2 seconds (at 12000 Hz, count is typically small blocks, say 1024 samples)
-    if (qsoIdleFrames_ > 20) {
+    // If no text for ~250ms (squelch closed), flush completed message
+    if (qsoIdleFrames_ > 6) {
       flushQsoMessage(true);
     }
   }
@@ -106,11 +110,11 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
     }
     if (!found && channels_[i].active) {
       channels_[i].idleFrames++;
-      if (channels_[i].idleFrames > 20) {
+      if (channels_[i].idleFrames > 6) {
         // Complete it
         ChannelDecode dummy;
         dummy.channelId = i;
-        dummy.frequency = 0; // Not used for completion flush
+        dummy.frequency = channels_[i].frequency;
         dummy.snr = 0;
         flushChannelMessage(i, dummy, true);
       }
@@ -148,18 +152,22 @@ void Decoder::flushChannelMessage(int channelId, ChannelDecode const& decode, bo
     ch.active = true;
     ch.messageId = generateMessageId(channelId);
     ch.startSeconds = nextRequiredSample_ / 12000.0;
+    ch.frequency = decode.frequency;
     ch.text.clear();
   }
 
   if (!complete) {
     ch.text += QString::fromStdString(decode.text);
     ch.idleFrames = 0;
+    if (ch.text.contains('\n') || ch.text.contains('\r')) {
+      complete = true;
+    }
   }
 
   if (ch.active) {
     Jtty::MessageUpdate update;
     update.messageId = ch.messageId;
-    update.frequency = complete ? 0.0f : static_cast<float>(decode.frequency); // Just use decode freq when active
+    update.frequency = static_cast<float>(ch.frequency);
     update.text = ch.text;
     update.sequenceStart = ch.startSeconds;
     // update.latestSeconds = nextRequiredSample_ / 12000.0;
@@ -170,6 +178,7 @@ void Decoder::flushChannelMessage(int channelId, ChannelDecode const& decode, bo
     if (complete) {
       ch.active = false;
       ch.text.clear();
+      ch.idleFrames = 0;
     }
   }
 }

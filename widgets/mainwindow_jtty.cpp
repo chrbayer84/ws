@@ -316,28 +316,28 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   
   QVector<Jtty::MessageUpdate> updates = m_rttyDecoder.takeUpdates();
 
-  bool const allHistoryChanged = Jtty::mergeMessageUpdates(
-      m_jttyAllFreqLines, updates,
-      [&jttyLineDateTimeUtc, &jttyLineDisplayDateTimeUtc] (Jtty::MessageUpdate const& update) {
-        JttyDecodeLine decodeLine;
-        decodeLine.messageId = update.messageId;
-        decodeLine.frequency = update.frequency;
-        decodeLine.text = update.text;
-        decodeLine.sequenceStart = update.sequenceStart;
-        decodeLine.messageStartUtc = jttyLineDisplayDateTimeUtc (update.sequenceStart);
-        decodeLine.complete = update.complete;
-        decodeLine.snr = update.snr;
-        decodeLine.allTxtTime = jttyLineDateTimeUtc(update.sequenceStart);
-        return decodeLine;
-      });
-
-  if (allHistoryChanged) renderJttyAllFreqLines ();
-
-  for (auto& known : m_jttyAllFreqLines) {
-      if (known.complete && !known.written) {
-          write_all("Rx", formatJttyDecodeLine(known.frequency, known.snr, known.text), known.allTxtTime);
-          known.written = true;
+  // In RTTY mode, completed decodes across the passband append to the bottom of the All Decodes pane (like FT8)
+  for (auto const& update : updates) {
+    if (update.complete && !update.text.trimmed().isEmpty()) {
+      QString displayLine = formatJttyDecodeLine(
+        update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
+      if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
+      if (ui->cbIncludeTime->isChecked()) {
+        QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
+        if (!time.isEmpty()) displayLine = time + " " + displayLine;
       }
+      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      if (cursor.position() > 0) cursor.insertBlock();
+      QTextCharFormat format;
+      format.setFont(ui->decodedTextBrowser->contentFont());
+      cursor.insertText(displayLine, format);
+      ui->decodedTextBrowser->setTextCursor(cursor);
+      ui->decodedTextBrowser->ensureCursorVisible();
+
+      write_all("Rx", formatJttyDecodeLine(update.frequency, update.snr, update.text.trimmed()),
+                jttyLineDateTimeUtc(update.sequenceStart));
+    }
   }
 
   bool const qsoDisplayOptionsChanged = !m_jttyQsoLines.isEmpty()

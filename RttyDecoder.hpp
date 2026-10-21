@@ -52,6 +52,7 @@ private:
     qint64 messageId {0};
     QString text;
     double startSeconds {0.0};
+    double frequency {0.0};
     bool active {false};
     int idleFrames {0};
   };

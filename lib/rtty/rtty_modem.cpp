@@ -111,7 +111,7 @@ namespace Rtty
     spaceNoise_ = 0.0;
     sigPwr_ = 1e-12;
     noisePwr_ = 1.0;
-    toneContrast_ = 0.0;
+    dcdContrast_ = 0.0;
 
     inpPtr_ = 0;
     for (int i = 0; i < MAX_PIPE; ++i) {
@@ -171,15 +171,17 @@ namespace Rtty
 
     switch (rxState_) {
     case RxState::Idle:
-      if (isMarkSpace(correction)) {
-        rxState_ = RxState::Start;
-        counter_ = correction;
+      if (metric_ >= squelch_ || squelch_ <= 0.0) {
+        if (isMarkSpace(correction)) {
+          rxState_ = RxState::Start;
+          counter_ = correction;
+        }
       }
       break;
 
     case RxState::Start:
       if (--counter_ <= 0) {
-        if (!isMark()) {
+        if (!isMark() && (metric_ >= squelch_ || squelch_ <= 0.0)) {
           rxState_ = RxState::Data;
           counter_ = symbolLenRx_;
           bitCntr_ = 0;
@@ -228,20 +230,9 @@ namespace Rtty
 
   void RttyModem::updateMetric()
   {
-    double const sp = std::max(markEnv_, spaceEnv_);
-    double const np = std::min(markNoise_, spaceNoise_) + 1e-12;
-
-    sigPwr_ = decayavg(sigPwr_, sp, sp > sigPwr_ ? 4 : 16);
-    noisePwr_ = decayavg(noisePwr_, np, 32);
-
-    // Tone contrast: on noise mark and space envelopes are roughly equal (~0.1-0.2);
-    // on a real FSK tone, one envelope strongly dominates (~0.7-1.0).
-    double const contrast = std::abs(markEnv_ - spaceEnv_) / (markEnv_ + spaceEnv_ + 1e-9);
-    toneContrast_ = decayavg(toneContrast_, contrast, 16);
-
-    double const ratio = (sigPwr_ / noisePwr_) * toneContrast_;
-    snrDb_ = 10.0 * std::log10(std::max(ratio, 1e-3));
-    metric_ = clamp(ratio, 0.0, 100.0);
+    double const sigLevel = std::max(markEnv_, spaceEnv_);
+    double const noiseLevel = std::min(markNoise_, spaceNoise_) + 1e-6;
+    snrDb_ = 20.0 * std::log10(std::max(1.0, sigLevel / noiseLevel));
   }
 
   void RttyModem::rxProcess(int16_t const * samples, int count)
@@ -304,6 +295,13 @@ namespace Rtty
                                   - (spaceEnv_ - noiseFloor) * (spaceEnv_ - noiseFloor));
 
           bool bit = (v3 > 0.0);
+
+          // Instantaneous FSK tone contrast (near ~0.85 on signal, ~0.12 on Gaussian noise)
+          double const totalTone = markMag_ + spaceMag_;
+          double const diffTone = std::abs(markMag_ - spaceMag_);
+          double const instContrast = totalTone > 1e-4 ? (diffTone / totalTone) : 0.0;
+          dcdContrast_ = decayavg(dcdContrast_, instContrast, symbolLenRx_ / 2);
+          metric_ = clamp((dcdContrast_ - 0.22) / 0.50 * 10.0, 0.0, 10.0);
 
           markHistory_[inpPtr_] = zpMark[i];
           spaceHistory_[inpPtr_] = zpSpace[i];
