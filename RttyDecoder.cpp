@@ -47,13 +47,13 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   // No bandpass filter on the modem itself - it processes the full signal
   // but we set its center frequency for proper demodulation
   qsoModem_.setFrequency(centerFrequency);
-  qsoModem_.setSquelch(2.0); 
+  qsoModem_.setSquelch(5.0); 
   qsoModem_.rxProcess(samples, count);
 
   // Multi-Demod (LH Pane): Scan the FULL passband (lowFrequency to highFrequency)
   // to show all decodes across the waterfall
   multiDemod_.setBandpass(lowFrequency, highFrequency);
-  multiDemod_.setSquelch(2.0);
+  multiDemod_.setSquelch(5.0);
   multiDemod_.rxProcess(samples, count);
 
   double currentSeconds = static_cast<double>(firstSample) / 12000.0;
@@ -71,19 +71,14 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
       qsoText_ += QString::fromStdString(newText);
       qsoIdleFrames_ = 0;
       
-      bool const hasNewline = qsoText_.contains('\n') || qsoText_.contains('\r');
       Jtty::MessageUpdate update;
       update.messageId = qsoMessageId_;
       update.frequency = centerFrequency;
       update.text = qsoText_;
       update.sequenceStart = qsoStartSeconds_;
-      update.complete = hasNewline;
+      update.complete = false;
       update.snr = static_cast<int>(qsoModem_.lastSnr());
       pendingUpdates_.push_back(update);
-      if (hasNewline) {
-        qsoActive_ = false;
-        qsoText_.clear();
-      }
     }
   } else if (qsoActive_) {
     qsoIdleFrames_++;
@@ -128,18 +123,21 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
 void Decoder::flushQsoMessage(bool complete)
 {
   if (!qsoActive_) return;
-  Jtty::MessageUpdate update;
-  update.messageId = qsoMessageId_;
-  update.frequency = qsoModem_.frequency();
-  update.text = qsoText_;
-  update.sequenceStart = qsoStartSeconds_;
-  // update.latestSeconds = qsoStartSeconds_ + 2.0; // Approximation
-  update.complete = complete;
-  update.snr = static_cast<int>(qsoModem_.lastSnr());
-  pendingUpdates_.push_back(update);
+  QString const cleanText = qsoText_.trimmed();
+  if (!cleanText.isEmpty() && (!complete || cleanText.length() >= 3)) {
+    Jtty::MessageUpdate update;
+    update.messageId = qsoMessageId_;
+    update.frequency = qsoModem_.frequency();
+    update.text = cleanText;
+    update.sequenceStart = qsoStartSeconds_;
+    update.complete = complete;
+    update.snr = static_cast<int>(qsoModem_.lastSnr());
+    pendingUpdates_.push_back(update);
+  }
   if (complete) {
     qsoActive_ = false;
     qsoText_.clear();
+    qsoIdleFrames_ = 0;
   }
 }
 
@@ -159,21 +157,20 @@ void Decoder::flushChannelMessage(int channelId, ChannelDecode const& decode, bo
   if (!complete) {
     ch.text += QString::fromStdString(decode.text);
     ch.idleFrames = 0;
-    if (ch.text.contains('\n') || ch.text.contains('\r')) {
-      complete = true;
-    }
   }
 
   if (ch.active) {
-    Jtty::MessageUpdate update;
-    update.messageId = ch.messageId;
-    update.frequency = static_cast<float>(ch.frequency);
-    update.text = ch.text;
-    update.sequenceStart = ch.startSeconds;
-    // update.latestSeconds = nextRequiredSample_ / 12000.0;
-    update.complete = complete;
-    update.snr = static_cast<int>(decode.snr);
-    pendingUpdates_.push_back(update);
+    QString const cleanText = ch.text.trimmed();
+    if (!cleanText.isEmpty() && (!complete || cleanText.length() >= 3)) {
+      Jtty::MessageUpdate update;
+      update.messageId = ch.messageId;
+      update.frequency = static_cast<float>(ch.frequency);
+      update.text = cleanText;
+      update.sequenceStart = ch.startSeconds;
+      update.complete = complete;
+      update.snr = static_cast<int>(decode.snr);
+      pendingUpdates_.push_back(update);
+    }
     
     if (complete) {
       ch.active = false;

@@ -105,13 +105,15 @@ namespace Rtty
     bool reverse_ {false};
     bool uos_ {true};
     bool afc_ {true};
-    double squelch_ {2.0};
+    double squelch_ {5.0};
 
     double frequency_ {1500.0};
     double freqErr_ {0.0};
     double metric_ {0.0};
     double snrDb_ {0.0};
     double dcdContrast_ {0.0};
+    double inPwr_ {1e-9};
+    double fskPwr_ {0.0};
 
     int symbolLenRx_ {264};
     int stopLenRx_ {396};

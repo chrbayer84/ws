@@ -318,7 +318,7 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
 
   // In RTTY mode, completed decodes across the passband append to the bottom of the All Decodes pane (like FT8)
   for (auto const& update : updates) {
-    if (update.complete && !update.text.trimmed().isEmpty()) {
+    if (update.complete && update.text.trimmed().length() >= 3) {
       QString displayLine = formatJttyDecodeLine(
         update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
       if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();

@@ -112,6 +112,8 @@ namespace Rtty
     sigPwr_ = 1e-12;
     noisePwr_ = 1.0;
     dcdContrast_ = 0.0;
+    inPwr_ = 1e-9;
+    fskPwr_ = 0.0;
 
     inpPtr_ = 0;
     for (int i = 0; i < MAX_PIPE; ++i) {
@@ -257,6 +259,7 @@ namespace Rtty
 
     for (int sampleIdx = 0; sampleIdx < count; ++sampleIdx) {
       double const inVal = samples[sampleIdx];
+      inPwr_ = decayavg(inPwr_, inVal * inVal, symbolLenRx_);
       cmplx const z(inVal, inVal);
 
       // Downconvert Mark and Space to baseband analytic signals
@@ -296,12 +299,20 @@ namespace Rtty
 
           bool bit = (v3 > 0.0);
 
-          // Instantaneous FSK tone contrast (near ~0.85 on signal, ~0.12 on Gaussian noise)
+          // Track tone energy and instantaneous contrast
           double const totalTone = markMag_ + spaceMag_;
+          fskPwr_ = decayavg(fskPwr_, markMag_ * markMag_ + spaceMag_ * spaceMag_, symbolLenRx_);
+
           double const diffTone = std::abs(markMag_ - spaceMag_);
           double const instContrast = totalTone > 1e-4 ? (diffTone / totalTone) : 0.0;
           dcdContrast_ = decayavg(dcdContrast_, instContrast, symbolLenRx_ / 2);
-          metric_ = clamp((dcdContrast_ - 0.22) / 0.50 * 10.0, 0.0, 10.0);
+
+          // Concentration: fraction of total input audio power in these two 50Hz FSK tone filters
+          double const concentration = fskPwr_ / (inPwr_ + 1e-9);
+          // On noise: concentration ~0.03, dcdContrast ~0.15-0.25 -> metric is ~0.6-1.0
+          // On signal: concentration ~0.50-0.90, dcdContrast ~0.85 -> metric is ~30-60
+          double const metricVal = (concentration / 0.12) * (dcdContrast_ / 0.50);
+          metric_ = clamp(metricVal * 5.0, 0.0, 100.0);
 
           markHistory_[inpPtr_] = zpMark[i];
           spaceHistory_[inpPtr_] = zpSpace[i];
