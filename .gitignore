@@ -1,24 +1,87 @@
-~*
-TAGS
-tags
-GPATH
-GRTAGS
-GTAGS
-*~
-junk*
-jnq*
-!*.exe
-*.o
-*.mod
-*.pro.user
-*.txt
-*.bak
-!**/CMakeLists.txt
-!**/*.txt
-__pycache__
+# Build directories
+build/
 cmake-build-debug
 cmake-build-release
 CMakeFiles
-fnd
+
+# CMake generated files
+CMakeCache.txt
+CMakeCPackOptions.cmake
+CPackConfig.cmake
+CPackSourceConfig.cmake
+CTestTestfile.cmake
+Makefile
+cmake_install.cmake
+cmake_uninstall.cmake
+*.cmake
+
+# Compiled objects and binaries
+*.o
+*.mod
+*.a
+*.so
+*.dylib
+*.dll
+*.lib
+*.exe
+*.out
+
+# Qt generated files
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qm
+*.rcc
+
+# Test binaries
+test_*
+*_test
+*_autogen/
+
+# Autogen directories
+*_autogen/
+
+# Rejected patch files
+*.rej
+
+# IDE/Editor files
+*.pro.user
+*.swp
+*.swo
+*~
+.DS_Store
+.vscode/
+.idea/
+*.sublime-*
+
+# Documentation
+doc/*.html
+doc/*.pdf
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.log
+junk*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Fortran
+*.mod
+*.f90
+*.f
+
+# Lib temporary
 lib/77bit/tmp
 lib/tmp
+
+# CTest
+Testing/
+
+# Version control
+scs_version.h
