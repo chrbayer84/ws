@@ -1,20 +1,20 @@
-Start testing: Oct 21 12:05 EDT
+Start testing: Oct 21 12:22 EDT
 ----------------------------------------------------------
 4/6 Testing: test_rtty_baudot
 4/6 Test: test_rtty_baudot
 Command: "/home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty/test_rtty_baudot"
 Directory: /home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty
-"test_rtty_baudot" start time: Oct 21 12:05 EDT
+"test_rtty_baudot" start time: Oct 21 12:22 EDT
 Output:
 ----------------------------------------------------------
 Running testBaudotEncodingAndDecoding...
 test_rtty_baudot: all checks passed
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Pass Reason:
 Required regular expression found. Regex=[test_rtty_baudot: all checks passed]
-"test_rtty_baudot" end time: Oct 21 12:05 EDT
+"test_rtty_baudot" end time: Oct 21 12:22 EDT
 "test_rtty_baudot" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -22,7 +22,7 @@ Required regular expression found. Regex=[test_rtty_baudot: all checks passed]
 5/6 Test: test_rtty_modem
 Command: "/home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty/test_rtty_modem"
 Directory: /home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty
-"test_rtty_modem" start time: Oct 21 12:05 EDT
+"test_rtty_modem" start time: Oct 21 12:22 EDT
 Output:
 ----------------------------------------------------------
 Running testModemLoopback...
@@ -38,7 +38,7 @@ Test time =   0.05 sec
 ----------------------------------------------------------
 Test Pass Reason:
 Required regular expression found. Regex=[test_rtty_modem: all checks passed]
-"test_rtty_modem" end time: Oct 21 12:05 EDT
+"test_rtty_modem" end time: Oct 21 12:22 EDT
 "test_rtty_modem" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -46,7 +46,7 @@ Required regular expression found. Regex=[test_rtty_modem: all checks passed]
 6/6 Test: test_tx_start_policy
 Command: "/home/christian/temp/wsjtx/build/ws/build/tests/unit/common/test_tx_start_policy"
 Directory: /home/christian/temp/wsjtx/build/ws/build/tests/unit/common
-"test_tx_start_policy" start time: Oct 21 12:05 EDT
+"test_tx_start_policy" start time: Oct 21 12:22 EDT
 Output:
 ----------------------------------------------------------
 ********* Start testing of TestTxStartPolicy *********
@@ -64,12 +64,12 @@ PASS   : TestTxStartPolicy::cleanupTestCase()
 Totals: 10 passed, 0 failed, 0 skipped, 0 blacklisted, 1ms
 ********* Finished testing of TestTxStartPolicy *********
 <end of output>
-Test time =   0.01 sec
+Test time =   0.03 sec
 ----------------------------------------------------------
 Test Pass Reason:
 Required regular expression found. Regex=[Totals: .* passed, 0 failed]
-"test_tx_start_policy" end time: Oct 21 12:05 EDT
+"test_tx_start_policy" end time: Oct 21 12:22 EDT
 "test_tx_start_policy" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Oct 21 12:05 EDT
+End testing: Oct 21 12:22 EDT

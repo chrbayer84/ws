@@ -795,7 +795,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   int yTxTop=12;
   int yRxBottom=yTxTop + 2*yh + 4;
   if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65"
-      or m_mode.startsWith("FST4")) {
+      or m_mode=="RTTY" or m_mode.startsWith("FST4")) {
 
     if(m_mode=="FST4" and !m_bSingleDecode) {
       x1=XfromFreq(m_nfa);

@@ -1503,6 +1503,9 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   if (m_mode == "WSPR") {
     QTimer::singleShot(3000, this, [this]() { on_actionWSPR_triggered(); });
   }
+  if (m_mode == "RTTY") {
+    QTimer::singleShot(500, this, [this]() { ui->actionRTTY->setChecked(true); });
+  }
   if(m_mode=="Echo") monitor(false);  //Don't auto-start Monitor in Echo mode.
 
   // Ensure that the correct frequency is set and displayed
