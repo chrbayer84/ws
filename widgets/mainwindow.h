@@ -1228,12 +1228,9 @@ private:
   QString jttyRejectReasonText(JttyTxRejectReason reason) const;
 #endif
   void execute_rtty_tx(qint64 requestId, QString message, bool isFinal = true);
-  void execute_rtty_tones(qint64 requestId, QString const& message, int frequency = -1);
   bool rtty_decode(int k, int istart0 = -1, int istop = -1);
   bool isConversationalMode() const { return m_mode == "JTTY" || m_mode == "RTTY"; }
   void execute_jtty_tx(qint64 requestId, QString message);
-  void execute_jitty_tones(qint64 requestId, QString const& message,
-                          int const itone[], int nsym);
   void execute_jtty_tones(qint64 requestId, QString const& message,
                           int const itone[], int nsym);
   void advanceJttyTxQueueEpoch();

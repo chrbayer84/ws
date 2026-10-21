@@ -24,8 +24,13 @@ namespace Rtty
 
   void RttyMultiDemod::setBandpass(double lowFreq, double highFreq)
   {
-    lowFreq_ = clamp(lowFreq, 100.0, 4000.0);
-    highFreq_ = clamp(highFreq, lowFreq_ + 200.0, 5000.0);
+    double clampedLow = clamp(lowFreq, 100.0, 4000.0);
+    double clampedHigh = clamp(highFreq, clampedLow + 200.0, 5000.0);
+    if (std::abs(clampedLow - lowFreq_) < 1.0 && std::abs(clampedHigh - highFreq_) < 1.0) {
+      return;
+    }
+    lowFreq_ = clampedLow;
+    highFreq_ = clampedHigh;
     reset();
   }
 

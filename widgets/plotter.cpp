@@ -702,7 +702,8 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
 
   float bw=9.0*12000.0/m_nsps;               //JT9
   if(m_mode=="FT8") bw=7*12000.0/1920.0;     //FT8
-  if(m_mode=="JTTY" || m_mode=="RTTY") bw=3*12000.0/384.0;     //JTTY/RTTY
+  if(m_mode=="JTTY") bw=3*12000.0/384.0;     //JTTY
+  if(m_mode=="RTTY") bw=170.0;               //RTTY standard shift
   if(m_mode=="FT4") bw=3*12000.0/576.0;      //FT4
   if(m_mode=="FT2") bw=3*12000.0/288.0;      //FT2
   if(m_mode.startsWith("FST4")) {
@@ -865,7 +866,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red bars
-  if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode.startsWith("FST4")
+  if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode=="RTTY" or m_mode=="JTTY" or m_mode.startsWith("FST4")
      or m_mode.mid(0,4)=="WSPR") {
     x1=XfromFreq(m_txFreq); x2=XfromFreq(m_txFreq+bw);
     if(m_mode=="FT8" and m_bSuperFox) x2=XfromFreq(m_txFreq+1500.0);
@@ -880,7 +881,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red goal post
-  if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode.startsWith("FST4")
+  if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode=="RTTY" or m_mode=="JTTY" or m_mode.startsWith("FST4")
       or m_mode.mid(0,4)=="WSPR") {
     painter0.setPen(penRed);
     x1=XfromFreq(m_txFreq);

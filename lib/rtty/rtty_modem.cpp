@@ -111,6 +111,7 @@ namespace Rtty
     spaceNoise_ = 0.0;
     sigPwr_ = 1e-12;
     noisePwr_ = 1.0;
+    toneContrast_ = 0.0;
 
     inpPtr_ = 0;
     for (int i = 0; i < MAX_PIPE; ++i) {
@@ -227,13 +228,18 @@ namespace Rtty
 
   void RttyModem::updateMetric()
   {
-    double const sp = markEnv_ + spaceEnv_ + 1e-10;
-    double const np = markNoise_ + spaceNoise_ + 1e-12;
+    double const sp = std::max(markEnv_, spaceEnv_);
+    double const np = std::min(markNoise_, spaceNoise_) + 1e-12;
 
     sigPwr_ = decayavg(sigPwr_, sp, sp > sigPwr_ ? 4 : 16);
     noisePwr_ = decayavg(noisePwr_, np, 32);
 
-    double const ratio = sigPwr_ / noisePwr_;
+    // Tone contrast: on noise mark and space envelopes are roughly equal (~0.1-0.2);
+    // on a real FSK tone, one envelope strongly dominates (~0.7-1.0).
+    double const contrast = std::abs(markEnv_ - spaceEnv_) / (markEnv_ + spaceEnv_ + 1e-9);
+    toneContrast_ = decayavg(toneContrast_, contrast, 16);
+
+    double const ratio = (sigPwr_ / noisePwr_) * toneContrast_;
     snrDb_ = 10.0 * std::log10(std::max(ratio, 1e-3));
     metric_ = clamp(ratio, 0.0, 100.0);
   }

@@ -111,6 +111,7 @@ namespace Rtty
     double freqErr_ {0.0};
     double metric_ {0.0};
     double snrDb_ {0.0};
+    double toneContrast_ {0.0};
 
     int symbolLenRx_ {264};
     int stopLenRx_ {396};

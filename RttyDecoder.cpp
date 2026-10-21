@@ -47,13 +47,13 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   // No bandpass filter on the modem itself - it processes the full signal
   // but we set its center frequency for proper demodulation
   qsoModem_.setFrequency(centerFrequency);
-  qsoModem_.setSquelch(3.0); 
+  qsoModem_.setSquelch(2.0); 
   qsoModem_.rxProcess(samples, count);
 
   // Multi-Demod (LH Pane): Scan the FULL passband (lowFrequency to highFrequency)
   // to show all decodes across the waterfall
   multiDemod_.setBandpass(lowFrequency, highFrequency);
-  multiDemod_.setSquelch(3.0);
+  multiDemod_.setSquelch(2.0);
   multiDemod_.rxProcess(samples, count);
 
   double currentSeconds = static_cast<double>(firstSample) / 12000.0;
@@ -92,10 +92,7 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   // Process MultiDemod (LH Pane)
   auto decodes = multiDemod_.takeDecodes();
   for (auto const& decode : decodes) {
-    // Minimum SNR threshold to suppress garbage (e.g., 6 dB)
-    if (decode.snr >= 6) {
-      flushChannelMessage(decode.channelId, decode, false);
-    }
+    flushChannelMessage(decode.channelId, decode, false);
   }
 
   // Check for idle multi channels
@@ -127,8 +124,6 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
 void Decoder::flushQsoMessage(bool complete)
 {
   if (!qsoActive_) return;
-  // Minimum SNR threshold to suppress garbage (e.g., 6 dB)
-  if (qsoModem_.lastSnr() < 6.0) return;
   Jtty::MessageUpdate update;
   update.messageId = qsoMessageId_;
   update.frequency = qsoModem_.frequency();

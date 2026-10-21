@@ -586,15 +586,15 @@ void MainWindow::submitJttyDraft(QString message)
 
   qint64 const requestId = ++m_jttyTxRequestId;
   m_jttyDraftAcceptanceTracker.trackSubmission (requestId);
-  execute_jtty_tx (requestId, message);
+  if (m_mode == "RTTY") {
+    execute_rtty_tx (requestId, message, true);
+  } else {
+    execute_jtty_tx (requestId, message);
+  }
   if (m_jttyDraftAcceptanceTracker.isPending (requestId)) {
     ui->Tx_Message->selectAll ();
   }
 }
-
-
-
-
 
 void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal)
 {
@@ -603,98 +603,23 @@ void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal
     return;
   }
 
+  if (ui->cbLowerCase->isChecked()) message = message.toLower();
+
   if (isFinal && !message.isEmpty()) {
     message += "\r\n ";
   }
 
-  Jtty::TransmitSegment segment;
-  segment.text = message;
-  segment.frequency = ui->TxFreqSpinBox_2->value();
-
-  if (message.isEmpty()) {
-    segment.rttySampleCount = 7920; 
-  } else {
-    segment.rttySampleCount = static_cast<qint64>(message.length()) * 7920; 
-  }
-
-  QVector<Jtty::TransmitSegment> segments;
-  segments.append(std::move(segment));
-
-  enqueueJttySegments(requestId, std::move(segments));
-}
-
-void MainWindow::enqueueJttySegments(
-    qint64 requestId, QVector<Jtty::TransmitSegment> segments)
-{
-  if (!isConversationalMode() || m_closing || jttyDrainInProgress()
-      || segments.isEmpty()) {
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
-    return;
-  }
-  m_jttyTransmitQueue.append(requestId, std::move(segments));
-  updateJttySendButton();
-  feedJttyTransmitQueue();
-}
-
-void MainWindow::execute_jitty_tx(qint64 requestId, QString message)
-{
-  int itone[944];
-  // Captured before anything below can change m_jttyTxActive: true means
-  // this message is being queued behind one still transmitting, not
-  // starting a fresh session.
-  bool const isChainedMessage = m_jttyTxActive;
-  if(ui->cbLowerCase->isChecked()) message = message.toLower();
-
-  auto const preparedMessage = Jtty::prepareTransmitText(message);
-  if (preparedMessage.changed()) {
-    LOG_WARN("JTTY transmit message was normalized or shortened before encoding");
-  }
-  message = preparedMessage.text;
-  if (message.isEmpty()) {
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::Empty);
-    return;
-  }
-
-  // Keep message as the logical text; the chained leading space is only
-  // transport spacing and must not leak into logging, display, or the contest
-  // serial check in completeJttyTxEnqueue.
-  auto transmitFrame = Jtty::transmitFrame(message, isChainedMessage).toLatin1();
-
-  int nsym=0;
-  int const exchangeProfile = static_cast<int>(jttyExchangeProfile(m_config));
-  genjtty_profile_(transmitFrame.data(), &exchangeProfile,
-                   &itone[0], &nsym, (FCL)80);
-  if (nsym <= 0) {
-    LOG_WARN("JTTY transmit message could not be encoded");
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
-    return;
-  }
-
-  message = QString::fromLatin1(transmitFrame).trimmed();
-  execute_jtty_tones(requestId, message, itone, nsym);
-}
-
-
-
-
-
-void MainWindow::execute_rtty_tones(qint64 requestId, QString const& message, int frequency)
-{
-  if ((m_jttyTxActive && jttyTxCommittedSamples() <= 0)) {
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
-    return;
-  }
-
-  float f0 = (frequency >= 0 ? frequency : ui->TxFreqSpinBox_2->value()) - m_XIT;
+  float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
 
   if (!m_rttyTxModem) {
-    m_rttyTxModem = std::make_unique<Rtty::RttyModem>();
+    m_rttyTxModem.reset(new Rtty::RttyModem());
   }
 
   bool const newSession = !m_jttyTxActive;
   if (newSession) {
     advanceJttyTxQueueEpoch();
     m_jttyTxUsesTciAudio = m_tci_audio;
+    m_rttyTxModem->txInit();
   }
   bool const useTciAudio = m_jttyTxUsesTciAudio;
 
@@ -704,7 +629,6 @@ void MainWindow::execute_rtty_tones(qint64 requestId, QString const& message, in
     } else {
       m_jttyTxQueue->clear(m_jttyTxQueueEpoch);
     }
-    m_rttyTxModem->txInit();
   }
 
   std::vector<int16_t> wave;
@@ -740,23 +664,21 @@ void MainWindow::execute_rtty_tones(qint64 requestId, QString const& message, in
   TxAudioQueueProgress enqueueProgress;
   
   if (useTciAudio) {
-    if (samples.size () <= TxAudioQueue::defaultCapacity ()) {
-      QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
-                       samples.size () * int (sizeof (qint16)));
-      qint64 const enqueueId = ++m_jttyTciEnqueueId;
-      m_pendingJttyTciMessages.append(PendingJttyTciMessage {
-        m_jttyTxQueueEpoch,
-        enqueueId,
-        requestId,
-        samples.size (),
-        message,
-        newSession
-      });
-      m_jttyTxActive = true;
-      Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
-                                                   enqueueId);
-      enqueued = true;
-    }
+    QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
+                     samples.size () * int (sizeof (qint16)));
+    qint64 const enqueueId = ++m_jttyTciEnqueueId;
+    m_pendingJttyTciMessages.append(PendingJttyTciMessage {
+      m_jttyTxQueueEpoch,
+      enqueueId,
+      requestId,
+      samples.size (),
+      message,
+      newSession
+    });
+    m_jttyTxActive = true;
+    Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
+                                                 enqueueId);
+    enqueued = true;
   } else {
     auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
     enqueued = result.accepted;
@@ -770,6 +692,44 @@ void MainWindow::execute_rtty_tones(qint64 requestId, QString const& message, in
   }
 
   completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
+}
+
+void MainWindow::execute_jtty_tx(qint64 requestId, QString message)
+{
+  int itone[944];
+  // Captured before anything below can change m_jttyTxActive: true means
+  // this message is being queued behind one still transmitting, not
+  // starting a fresh session.
+  bool const isChainedMessage = m_jttyTxActive;
+  if(ui->cbLowerCase->isChecked()) message = message.toLower();
+
+  auto const preparedMessage = Jtty::prepareTransmitText(message);
+  if (preparedMessage.changed()) {
+    LOG_WARN("JTTY transmit message was normalized or shortened before encoding");
+  }
+  message = preparedMessage.text;
+  if (message.isEmpty()) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::Empty);
+    return;
+  }
+
+  // Keep message as the logical text; the chained leading space is only
+  // transport spacing and must not leak into logging, display, or the contest
+  // serial check in completeJttyTxEnqueue.
+  auto transmitFrame = Jtty::transmitFrame(message, isChainedMessage).toLatin1();
+
+  int nsym=0;
+  int const exchangeProfile = static_cast<int>(jttyExchangeProfile(m_config));
+  genjtty_profile_(transmitFrame.data(), &exchangeProfile,
+                   &itone[0], &nsym, (FCL)80);
+  if (nsym <= 0) {
+    LOG_WARN("JTTY transmit message could not be encoded");
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
+    return;
+  }
+
+  message = QString::fromLatin1(transmitFrame).trimmed();
+  execute_jtty_tones(requestId, message, itone, nsym);
 }
 
 void MainWindow::execute_jtty_tones(qint64 requestId, QString const& message,
@@ -1215,6 +1175,11 @@ bool MainWindow::sendJttyFunctionKey(int index)
   }
   if(macro.simplified().isEmpty()) return false;
 
+  if (m_mode == "RTTY") {
+    jtty_tx(jtty_msg_expand(macro));
+    return true;
+  }
+
   auto const context = jttyNativeMacroContext(
     m_config, m_hisCall, ui->sbSerialNumber_2->value(), m_jttyHisCallSnr);
   auto const compiled=Jtty::compileNativeMacro(macro,context);
@@ -1601,6 +1566,49 @@ void MainWindow::finishJttyDecodeUi()
   m_startAnother=m_loopall;
 }
 
+void MainWindow::on_actionRTTY_triggered()
+{
+  if (m_auto) auto_tx_mode (false);
+  on_stopButton_clicked();
+  m_mode = "RTTY";
+  ui->actionRTTY->setChecked(true);
+  switch_mode (Modes::RTTY);
+  WSPR_config(false);
+  VHF_features_enabled(false);
+  m_wideGraph->setMode(m_mode);
+  m_fastGraph->hide();
+  m_wideGraph->show();
+  ui->cbAutoSeq->setChecked(false);
+  m_bFastMode=false;
+  m_bFast9=false;
+  m_nsps=6912;
+  m_FFTSize = m_nsps / 2;
+  if (m_tci_audio) Q_EMIT m_config.transceiver_blocksize (m_FFTSize);
+  else Q_EMIT FFTSize (m_FFTSize);
+  m_TRperiod=180;
+  m_hsymStop=620;
+  m_wideGraph->setPeriod(m_TRperiod,m_nsps);
+  if (!m_tci_audio) {
+    m_modulator->setTRPeriod(m_TRperiod);
+    m_detector->setTRPeriod(m_TRperiod);
+  }
+  ui->TxFreqSpinBox_2->setValue(1500);
+  ui->RxFreqSpinBox_2->setValue(1500);
+  ui->sbFtol_2->values ({2, 5, 10, 20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500});
+  m_wideGraph->setRxFreq(ui->RxFreqSpinBox_2->value());
+  m_wideGraph->setTol(ui->sbFtol_2->value());
+  updateJttyDecodeHeadings();
+  ui->lh_decodes_title_label->setText(tr ("All Decodes"));
+  ui->rh_decodes_title_label->setText(tr ("QSO Frequency"));
+  displayWidgets(nWidgets("11111100010011100001000000010000000000"));
+  ui->actionMediumDecode->setChecked(true);
+  ui->actionQuickDecode->setEnabled(false);
+  ui->actionDeepestDecode->setEnabled(false);
+  setup_status_bar (false);
+  monitor(true);
+  statusChanged();
+}
+
 void MainWindow::on_actionJTTY_triggered()
 {
   // JTTY keys the transmitter whenever Tx is enabled, so never arrive with
@@ -1661,6 +1669,8 @@ void MainWindow::set_mode_from_command_line(const QString& mode, bool lock_mode)
         on_actionFT4_triggered();
     } else if (m == "jtty") {
         on_actionJTTY_triggered();
+    } else if (m == "rtty") {
+        on_actionRTTY_triggered();
     } else {
         LOG_INFO("Invalid or unsupported mode specified via command line: " << mode);
     }

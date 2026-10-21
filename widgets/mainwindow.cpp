@@ -2352,8 +2352,15 @@ void MainWindow::readSettings()
   }
   if (isConversationalMode()) {
     // We need this to initialize the height of the right pane correctly
+    QString const convMode = m_mode;
     on_actionFT8_triggered();
-    QTimer::singleShot (2500, [=] {on_actionJTTY_triggered();});
+    QTimer::singleShot (2500, [=] {
+      if (convMode == "RTTY") {
+        on_actionRTTY_triggered();
+      } else {
+        on_actionJTTY_triggered();
+      }
+    });
   }
   outBufSize=m_settings->value("OutBufSize",4096).toInt();
   ui->cbHoldTxFreq->setChecked (m_settings->value ("HoldTxFreq", false).toBool ());
@@ -9286,18 +9293,16 @@ void MainWindow::guiUpdate()
       }
       msgsent[37]=0;
     }
-    if(isConversationalMode()) {                  // JTTY text is not generated from Tx1-Tx6
+    if(isConversationalMode()) {                  // JTTY/RTTY text is not generated from Tx1-Tx6
       std::fill_n(msgsent, 37, ' ');
       msgsent[37]=0;
-    }
-
-    {
+    } else {
       auto temp = m_currentMessage;
       m_currentMessage = QString::fromLatin1(msgsent);
       if (m_currentMessage != temp) // check if tx message changed
       {
           statusUpdate ();
-        }
+      }
     }
     m_bCallingCQ = 6 == m_ntx
       || m_currentMessage.contains (QRegularExpression {"^(CQ|QRZ) "});
