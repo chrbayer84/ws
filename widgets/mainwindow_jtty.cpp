@@ -300,10 +300,19 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   int nfa = m_wideGraph->nStartFreq();
   int nfb = m_wideGraph->Fmax();
 
-  qint64 firstSearch = istart0 >= 0 ? istart0 : 0;
-  qint64 stopSearch = istop >= 0 ? istop : k;
-  
-  m_rttyDecoder.process(dec_data.d2, k, firstSearch, stopSearch, 1000, nfa, nfb, f0, ftol);
+  if (istart0 >= 0) {
+    m_rttyDecoder.begin(1, 0, istart0);
+    int count = (istop > istart0) ? (istop - istart0) : (k - istart0);
+    if (count > 0 && istart0 + count <= k) {
+      m_rttyDecoder.process(dec_data.d2 + istart0, count, istart0, istop, 1000, nfa, nfb, f0, ftol);
+    }
+  } else {
+    qint64 last_k = m_rttyDecoder.nextRequiredSample();
+    if (k > last_k) {
+      int count = k - last_k;
+      m_rttyDecoder.process(dec_data.d2 + last_k, count, last_k, k, 1000, nfa, nfb, f0, ftol);
+    }
+  }
   
   QVector<Jtty::MessageUpdate> updates = m_rttyDecoder.takeUpdates();
 

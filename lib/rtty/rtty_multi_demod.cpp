@@ -112,9 +112,12 @@ namespace Rtty
   {
     if (!samples || count <= 0) return;
 
-    for (auto& slot : channels_) {
-      if (slot.active && slot.modem) {
-        slot.modem->rxProcess(samples, count);
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(static)
+#endif
+    for (int i = 0; i < MAX_CHANNELS; ++i) {
+      if (channels_[i].active && channels_[i].modem) {
+        channels_[i].modem->rxProcess(samples, count);
       }
     }
   }
