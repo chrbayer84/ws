@@ -41,6 +41,7 @@ private:
   RttyMultiDemod multiDemod_;
 
   // State tracking for the QSO modem
+  double qsoCenterFrequency_ {0.0};
   qint64 qsoMessageId_ {0};
   QString qsoText_;
   double qsoStartSeconds_ {0.0};

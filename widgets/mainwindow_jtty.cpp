@@ -351,8 +351,9 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
                                   return line.messageId == update.messageId;
                                 });
       bool const alreadyPresent = known != m_jttyQsoLines.end();
+      float const effectiveTol = (m_mode == "RTTY") ? qMax(ftol, 60.0f) : ftol;
       if (!Jtty::shouldApplyToQsoHistory(
-              alreadyPresent, update.frequency, f0, ftol)) {
+              alreadyPresent, update.frequency, f0, effectiveTol)) {
           continue;
       }
       if (update.complete) anyEom = true;
@@ -615,7 +616,7 @@ void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal
   if (ui->cbLowerCase->isChecked()) message = message.toLower();
 
   if (isFinal && !message.isEmpty()) {
-    message += "\r\n ";
+    message += "\r\n";
   }
 
   float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
@@ -650,6 +651,10 @@ void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal
   } else {
     std::vector<int16_t> textWave = m_rttyTxModem->modulateText(message.toStdString(), f0);
     wave.insert(wave.end(), textWave.begin(), textWave.end());
+    if (isFinal) {
+      std::vector<int16_t> post = m_rttyTxModem->modulatePostamble(f0);
+      wave.insert(wave.end(), post.begin(), post.end());
+    }
   }
 
   QVector<qint16> samples;

@@ -21,6 +21,7 @@ void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int
   qsoModem_.rxInit();
   multiDemod_.reset();
 
+  qsoCenterFrequency_ = 0.0;
   qsoMessageId_ = 0;
   qsoText_.clear();
   qsoActive_ = false;
@@ -46,7 +47,10 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   // QSO Modem (RH Pane): Only decode at the RX frequency +/- tolerance
   // No bandpass filter on the modem itself - it processes the full signal
   // but we set its center frequency for proper demodulation
-  qsoModem_.setFrequency(centerFrequency);
+  if (std::abs(centerFrequency - qsoCenterFrequency_) > 1.0) {
+    qsoCenterFrequency_ = centerFrequency;
+    qsoModem_.setFrequency(centerFrequency);
+  }
   qsoModem_.setSquelch(5.0); 
   qsoModem_.rxProcess(samples, count);
 
