@@ -1,0 +1,15 @@
+m65impl_autogen/timestamp: \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/CMakeLists.txt \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/decode_rs.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/encode_rs.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/ftrsd2.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/igray.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/init_rs.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/posix_event_shim.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/ptt_unix.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/stdout_shared_memory.cpp \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/stdout_shared_memory.h \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/tmoonsub.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/usleep.c \
+	/home/christian/temp/wsjtx/build/ws/map65/libm65/wrapkarn.c \
+	/usr/bin/cmake

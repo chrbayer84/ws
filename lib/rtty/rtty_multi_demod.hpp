@@ -18,6 +18,8 @@ namespace Rtty
 {
   struct ChannelDecode
   {
+    ChannelDecode(int id, double f, std::string t, double s) : channelId(id), frequency(f), text(std::move(t)), snr(s) {}
+    ChannelDecode() = default;
     int channelId {0};
     double frequency {0.0};
     std::string text;

@@ -83,7 +83,7 @@ namespace Rtty
       channels_[i].frequency = lowFreq_ + (i + 0.5) * step;
       channels_[i].timeout = 0;
       if (!channels_[i].modem) {
-        channels_[i].modem = std::make_unique<RttyModem>(baud_, shift_, sampleRate_, 48000.0);
+        channels_[i].modem = std::unique_ptr<RttyModem>(new RttyModem(baud_, shift_, sampleRate_, 48000.0));
       }
       channels_[i].modem->setFrequency(channels_[i].frequency);
       channels_[i].modem->setReverse(reverse_);

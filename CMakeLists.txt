@@ -364,6 +364,7 @@ set (wsjtx_CXXSRCS
   lib/rtty/rtty_modem.cpp
   lib/rtty/rtty_multi_demod.cpp
   lib/rtty/rtty_shaper.cpp
+  RttyDecoder.cpp
   )
 
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
@@ -1102,7 +1103,7 @@ find_package (OpenMP)
 #
 # fftw3 single precision library
 #
-find_package (FFTW3 COMPONENTS single threads REQUIRED)
+find_package (FFTW3 COMPONENTS single double threads REQUIRED)
 
 #
 # hamlib setup

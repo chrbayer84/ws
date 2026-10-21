@@ -1,0 +1,14 @@
+test_rtty_modem_autogen/timestamp: \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_baudot.cpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_baudot.hpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_fftfilt.cpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_fftfilt.hpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_filters.cpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_filters.hpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_modem.cpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_modem.hpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_shaper.cpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_shaper.hpp \
+	/home/christian/temp/wsjtx/build/ws/tests/unit/rtty/CMakeLists.txt \
+	/home/christian/temp/wsjtx/build/ws/tests/unit/rtty/test_rtty_modem.cpp \
+	/usr/bin/cmake

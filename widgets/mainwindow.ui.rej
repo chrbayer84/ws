@@ -1,0 +1,24 @@
+diff a/widgets/mainwindow.ui b/widgets/mainwindow.ui	(rejected hunks)
+@@ -5363,6 +5363,7 @@ QPushButton[state=&quot;ok&quot;] {
+     <addaction name="actionQ65"/>
+     <addaction name="separator"/>
+     <addaction name="actionJTTY"/>
++    <addaction name="actionRTTY"/>
+     <addaction name="actionMSK144"/>
+     <addaction name="separator"/>
+     <addaction name="actionFST4W"/>
+@@ -6566,6 +6567,14 @@ QPushButton[state=&quot;ok&quot;] {
+     <string>JTTY</string>
+    </property>
+   </action>
++  <action name="actionRTTY">
++   <property name="checkable">
++    <bool>true</bool>
++   </property>
++   <property name="text">
++    <string>RTTY</string>
++   </property>
++  </action>
+  </widget>
+  <layoutdefault spacing="6" margin="11"/>
+  <customwidgets>

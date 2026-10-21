@@ -1,0 +1,33 @@
+Start testing: Oct 21 10:39 EDT
+----------------------------------------------------------
+6/6 Testing: test_tx_start_policy
+6/6 Test: test_tx_start_policy
+Command: "/home/christian/temp/wsjtx/build/ws/build/tests/unit/common/test_tx_start_policy"
+Directory: /home/christian/temp/wsjtx/build/ws/build/tests/unit/common
+"test_tx_start_policy" start time: Oct 21 10:39 EDT
+Output:
+----------------------------------------------------------
+********* Start testing of TestTxStartPolicy *********
+Config: Using QtTest library 5.15.18, Qt 5.15.18 (x86_64-little_endian-lp64 shared (dynamic) release build; by GCC 15.2.0), ubuntu 26.04
+PASS   : TestTxStartPolicy::initTestCase()
+PASS   : TestTxStartPolicy::standardMessageModesRequireText()
+PASS   : TestTxStartPolicy::generatedPayloadModesDoNotRequireText()
+PASS   : TestTxStartPolicy::unknownModesDefaultToStandardMessages()
+PASS   : TestTxStartPolicy::missingPayloadStopsOnlyStandardMessageModes()
+PASS   : TestTxStartPolicy::canStartTransmitRequiresPayloadAndOpenWindow()
+PASS   : TestTxStartPolicy::generatedPayloadModesRespectStartWindow()
+PASS   : TestTxStartPolicy::tuningCanStartWithoutPayload()
+PASS   : TestTxStartPolicy::rejectedGeneratedMessageBlocksTransmit()
+PASS   : TestTxStartPolicy::cleanupTestCase()
+Totals: 10 passed, 0 failed, 0 skipped, 0 blacklisted, 0ms
+********* Finished testing of TestTxStartPolicy *********
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Pass Reason:
+Required regular expression found. Regex=[Totals: .* passed, 0 failed]
+"test_tx_start_policy" end time: Oct 21 10:39 EDT
+"test_tx_start_policy" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 21 10:39 EDT

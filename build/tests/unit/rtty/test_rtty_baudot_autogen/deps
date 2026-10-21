@@ -1,0 +1,6 @@
+test_rtty_baudot_autogen/timestamp: \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_baudot.cpp \
+	/home/christian/temp/wsjtx/build/ws/lib/rtty/rtty_baudot.hpp \
+	/home/christian/temp/wsjtx/build/ws/tests/unit/rtty/CMakeLists.txt \
+	/home/christian/temp/wsjtx/build/ws/tests/unit/rtty/test_rtty_baudot.cpp \
+	/usr/bin/cmake

@@ -5548,6 +5548,7 @@ QPushButton[state=&quot;ok&quot;] {
     <addaction name="actionQ65"/>
     <addaction name="separator"/>
     <addaction name="actionJTTY"/>
+    <addaction name="actionRTTY"/>
     <addaction name="actionMSK144"/>
     <addaction name="separator"/>
     <addaction name="actionFST4W"/>
@@ -6919,6 +6920,14 @@ QPushButton[state=&quot;ok&quot;] {
    </property>
    <property name="text">
     <string>JTTY</string>
+   </property>
+  </action>
+  <action name="actionRTTY">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>RTTY</string>
    </property>
   </action>
   <action name="actionFT2">

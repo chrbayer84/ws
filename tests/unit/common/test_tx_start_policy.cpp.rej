@@ -1,0 +1,25 @@
+diff a/tests/unit/common/test_tx_start_policy.cpp b/tests/unit/common/test_tx_start_policy.cpp	(rejected hunks)
+@@ -55,6 +55,7 @@ void TestTxStartPolicy::missingPayloadStopsOnlyStandardMessageModes ()
+   QVERIFY (!should_stop_for_missing_tx_payload ("WSPR", 0, false));
+   QVERIFY (!should_stop_for_missing_tx_payload ("FST4W", 0, false));
+   QVERIFY (!should_stop_for_missing_tx_payload ("JTTY", 0, false));
++  QVERIFY (!should_stop_for_missing_tx_payload ("RTTY", 0, false));
+   QVERIFY (!should_stop_for_missing_tx_payload ("FT8", 0, true));
+ }
+ 
+@@ -71,6 +72,7 @@ void TestTxStartPolicy::canStartTransmitRequiresPayloadAndOpenWindow ()
+   QVERIFY (can_start_transmit ("FST4W", true, 0.5, 0, false));
+ 
+   QVERIFY (can_start_transmit ("JTTY", false, 0.95, 0, false));
++  QVERIFY (can_start_transmit ("RTTY", false, 0.95, 0, false));
+ }
+ 
+ void TestTxStartPolicy::generatedPayloadModesRespectStartWindow ()
+@@ -81,6 +83,7 @@ void TestTxStartPolicy::generatedPayloadModesRespectStartWindow ()
+   QVERIFY (!can_start_transmit ("WSPR", true, TxStartLatestPeriodFraction, 0, false));
+   QVERIFY (!can_start_transmit ("FST4W", true, 0.8, 0, false));
+   QVERIFY (can_start_transmit ("JTTY", false, 0.95, 0, false));
++  QVERIFY (can_start_transmit ("RTTY", false, 0.95, 0, false));
+ }
+ 
+ void TestTxStartPolicy::tuningCanStartWithoutPayload ()

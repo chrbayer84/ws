@@ -33,6 +33,7 @@
 #  define UDP_DEPRECATED_NO_EXPORT UDP_NO_EXPORT UDP_DEPRECATED
 #endif
 
+/* NOLINTNEXTLINE(readability-avoid-unconditional-preprocessor-if) */
 #if 0 /* DEFINE_NO_DEPRECATED */
 #  ifndef UDP_NO_DEPRECATED
 #    define UDP_NO_DEPRECATED

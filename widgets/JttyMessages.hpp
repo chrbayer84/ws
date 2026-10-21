@@ -186,8 +186,8 @@ namespace Jtty
 
   // Fixed width of a JTTY transmit frame; genjtty_ (lib/jtty/genjtty.f90)
   // expects exactly this many characters.
-  inline constexpr int maxMessageLength = 80;
-  inline constexpr int maxTransmitLength = maxMessageLength;
+  constexpr int maxMessageLength = 80;
+  constexpr int maxTransmitLength = maxMessageLength;
 
   inline PreparedTransmitText prepareTransmitText (QString const& message)
   {
@@ -235,11 +235,11 @@ namespace Jtty
 
   // Number of receive samples in one complete JTTY frame: 59 symbols of 384
   // samples (lib/jtty/jtty.f90). Anything shorter is not a decodable interval.
-  inline constexpr qint32 jttyFrameSamples = 59 * 384;
+  constexpr qint32 jttyFrameSamples = 59 * 384;
 
   // m_k0 starts at this sentinel and is only replaced once fastSink has real
   // audio, so it marks "nothing captured yet".
-  inline constexpr qint32 invalidCaptureSamples = 9999999;
+  constexpr qint32 invalidCaptureSamples = 9999999;
 
   // True when k0 describes a captured JTTY receive buffer worth saving: at
   // least one full frame, and not the uninitialised sentinel.
@@ -876,7 +876,7 @@ namespace Jtty
     return result;
   }
 
-  inline constexpr int maxDisplayWidth = 40;
+  constexpr int maxDisplayWidth = 40;
 
   inline QString wrapMessage (QString const& text, int maxWidth = maxDisplayWidth)
   {

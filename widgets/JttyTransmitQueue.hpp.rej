@@ -1,0 +1,13 @@
+diff a/widgets/JttyTransmitQueue.hpp b/widgets/JttyTransmitQueue.hpp	(rejected hunks)
+@@ -17,9 +17,11 @@ namespace Jtty
+     int frequency {1500};
+     // 0-indexed start offset into text of each encoded frame; empty if the caller didn't ask the encoder for boundaries.
+     QVector<int> frameCharStarts {};
++    qint64 rttySampleCount {0};
+ 
+     qint64 sampleCount () const
+     {
++      if (rttySampleCount > 0) return rttySampleCount;
+       return qint64 {tones.size ()} * 1536;
+     }
+   };

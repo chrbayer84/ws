@@ -1,0 +1,9 @@
+diff a/models/Modes.hpp b/models/Modes.hpp	(rejected hunks)
+@@ -52,6 +52,7 @@ public:
+     FST4W,
+     Q65,
+     JTTY,
++    RTTY,
+     MODES_END_SENTINAL_AND_COUNT // this must be last
+   };
+   Q_ENUM (Mode)

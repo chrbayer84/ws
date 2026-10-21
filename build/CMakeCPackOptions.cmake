@@ -4,7 +4,7 @@
 
 set (CPACK_PACKAGE_VENDOR "Uwe Risse, DG2YCB")
 set (CPACK_PACKAGE_CONTACT "dg2ycb@gmx.de")
-set (CPACK_RESOURCE_FILE_LICENSE "/home/christian/Downloads/ws-3.2.1/src/ws/COPYING")
+set (CPACK_RESOURCE_FILE_LICENSE "/home/christian/temp/wsjtx/build/ws/COPYING")
 # On Windows the NSIS block below makes this C:\WS\<version>. Was
 # ${CPACK_PACKAGE_NAME} under root C:\WSJT, giving C:\WSJT\wsjtx.
 set (CPACK_PACKAGE_INSTALL_DIRECTORY "WS")
@@ -74,10 +74,10 @@ if (CPACK_GENERATOR MATCHES "NSIS")
 
   # set the install/unistall icon used for the installer itself
   # There is a bug in NSI that does not handle full unix paths properly.
-  set (CPACK_NSIS_MUI_ICON "/home/christian/Downloads/ws-3.2.1/src/ws/icons/windows-icons\\wsjtx.ico")
-  set (CPACK_NSIS_MUI_UNIICON "/home/christian/Downloads/ws-3.2.1/src/ws/icons/windows-icons\\wsjtx.ico")
+  set (CPACK_NSIS_MUI_ICON "/home/christian/temp/wsjtx/build/ws/icons/windows-icons\\wsjtx.ico")
+  set (CPACK_NSIS_MUI_UNIICON "/home/christian/temp/wsjtx/build/ws/icons/windows-icons\\wsjtx.ico")
   # set the package header icon for MUI
-  set (CPACK_PACKAGE_ICON "/home/christian/Downloads/ws-3.2.1/src/ws/icons/windows-icons\\installer_logo.bmp")
+  set (CPACK_PACKAGE_ICON "/home/christian/temp/wsjtx/build/ws/icons/windows-icons\\installer_logo.bmp")
   # Start-menu links: home page, download page and, when the User Guide is
   # built (WSJT_GENERATE_DOCS ON), the installed English guide. A link that
   # is not a URL is a path below the install folder (forward slashes are fine,
@@ -132,12 +132,12 @@ endif ()
 
 if ("${CPACK_GENERATOR}" STREQUAL "DragNDrop")
   set (CPACK_DMG_VOLUME_NAME "WS")
-  set (CPACK_DMG_BACKGROUND_IMAGE "/home/christian/Downloads/ws-3.2.1/src/ws/icons/Darwin/DragNDrop Background.png")
-  set (CPACK_DMG_DS_STORE "/home/christian/Downloads/ws-3.2.1/src/ws/Darwin/wsjtx_DMG.DS_Store")
+  set (CPACK_DMG_BACKGROUND_IMAGE "/home/christian/temp/wsjtx/build/ws/icons/Darwin/DragNDrop Background.png")
+  set (CPACK_DMG_DS_STORE "/home/christian/temp/wsjtx/build/ws/Darwin/wsjtx_DMG.DS_Store")
   set (CPACK_BUNDLE_NAME "")
-  set (CPACK_PACKAGE_ICON "/home/christian/Downloads/ws-3.2.1/src/ws/build/wsjtx.icns")
-  set (CPACK_BUNDLE_ICON "/home/christian/Downloads/ws-3.2.1/src/ws/build/wsjtx.icns")
-  set (CPACK_BUNDLE_STARTUP_COMMAND "/home/christian/Downloads/ws-3.2.1/src/ws/Mac-wsjtx-startup.sh")
+  set (CPACK_PACKAGE_ICON "/home/christian/temp/wsjtx/build/ws/build/wsjtx.icns")
+  set (CPACK_BUNDLE_ICON "/home/christian/temp/wsjtx/build/ws/build/wsjtx.icns")
+  set (CPACK_BUNDLE_STARTUP_COMMAND "/home/christian/temp/wsjtx/build/ws/Mac-wsjtx-startup.sh")
 endif ()
 
 if ("${CPACK_GENERATOR}" STREQUAL "WIX")

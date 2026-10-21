@@ -2346,7 +2346,7 @@ void MainWindow::readSettings()
     ui->tabWidget->setCurrentIndex(1);
     ui->tabWidget->setCurrentIndex(n);
   }
-  if (m_mode=="JTTY") {
+  if (isConversationalMode()) {
     // We need this to initialize the height of the right pane correctly
     on_actionFT8_triggered();
     QTimer::singleShot (2500, [=] {on_actionJTTY_triggered();});
@@ -2611,7 +2611,7 @@ void MainWindow::fixStop()
     } else {
       m_hsymStop=stop[i];
     }
-  } else if(m_mode=="JTTY") {
+  } else if(isConversationalMode()) {
     m_hsymStop=620;
   }
 }
@@ -2643,7 +2643,7 @@ void MainWindow::dataSink(qint64 frames)
     if(m_bFastMode) return;
   }
 
-  if(m_mode=="JTTY") fastSink(frames);
+  if(isConversationalMode()) fastSink(frames);
 
 // Get power, spectrum, and ihsym
   dec_data.params.nfa=m_wideGraph->nStartFreq();
@@ -2667,7 +2667,7 @@ void MainWindow::dataSink(qint64 frames)
     m_wideGraph->dataSink2(s,m_df3,m_ihsym,m_diskData,m_px);
   }
   if(m_mode=="MSK144") return;
-  if(m_mode=="JTTY") {
+  if(isConversationalMode()) {
     if(m_ihsym >= m_hsymStop and (m_saveAll or m_saveDecoded)) {
       monitor(false);
       jtty_save_wav();
@@ -3013,7 +3013,7 @@ void MainWindow::fastSink(qint64 frames)
     memcpy(fast_green2,fast_green,4*703);        //Copy fast_green[] to fast_green2[]
     memcpy(fast_s2,fast_s,4*703*64);             //Copy fast_s[] into fast_s2[]
     fast_jh2=fast_jh;
-    if(!m_diskData && m_mode!="JTTY") memset(dec_data.d2,0,2*30*12000);   //Zero the d2[] array
+    if(!m_diskData && !isConversationalMode()) memset(dec_data.d2,0,2*30*12000);   //Zero the d2[] array
     m_bFastDecodeCalled=false;
     m_bDecoded=false;
   }
@@ -3055,9 +3055,9 @@ void MainWindow::fastSink(qint64 frames)
   ui->signal_meter_widget->setValue(rmsNoGain,pxmax); // Update thermometer
   m_fastGraph->plotSpec(m_diskData,m_UTCdisk);
 
-  if(m_mode=="JTTY") {
+  if(isConversationalMode()) {
     m_k0 = k;
-    jtty_decode(k);
+    if (m_mode == "RTTY") rtty_decode(k); else jtty_decode(k);
     if(dec_data.params.kin - k < 10240) fast_decode_done();
     return;
   }
@@ -4268,7 +4268,7 @@ void MainWindow::keyPressEvent (QKeyEvent * e)
     }
     QMainWindow::keyPressEvent (e);
   }
-  if(m_mode=="JTTY") {
+  if(isConversationalMode()) {
     bool handled = jtty_key_struck(e);
     if(handled) return;
   }
@@ -4944,7 +4944,7 @@ void MainWindow::setup_status_bar (bool vhf)
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #66ff66}");
   } else if ("Q65" == m_mode) {
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #99ff33}");
-  } else if ("JTTY" == m_mode) {
+  } else if (isConversationalMode()) {
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #9999ff}");
   } else if ("MSK144" == m_mode) {
     mode_label.setStyleSheet ("QLabel{color: #000000; background-color: #ff6666}");
@@ -5062,7 +5062,7 @@ void MainWindow::on_stopButton_clicked()                       //stopButton
 {
   ui->pbBandHopping->setChecked(false); // disable band hopping
   monitor (false);
-  if(m_mode=="JTTY" and m_saveAll and !m_diskData) {
+  if(isConversationalMode() and m_saveAll and !m_diskData) {
     jtty_save_wav();
   }
   m_loopall=false;
@@ -5915,7 +5915,7 @@ void MainWindow::on_DecodeButton_clicked (bool /* checked */) //Decode request
 {
   if(m_mode=="MSK144") {
     ui->DecodeButton->setChecked(false);
-  } else if(m_mode=="JTTY") {
+  } else if(isConversationalMode()) {
     jtty_again();
   } else {
     if(m_mode!="WSPR" && !m_decoderBusy) {
@@ -6321,7 +6321,7 @@ void::MainWindow::fast_decode_done()
   float t,tmax=-99.0;
   dec_data.params.nagain=false;
   dec_data.params.ndiskdat=false;
-  if(m_mode=="JTTY" && m_diskData) flushJttyDecodeLines();
+  if(isConversationalMode() && m_diskData) flushJttyDecodeLines();
 //  if(m_msg[0][0]==0) m_bDecoded=false;
   for(int i=0; i<100 && m_msg[i][0]; i++) {
     QString message=QString::fromLatin1(m_msg[i]);
@@ -9017,9 +9017,9 @@ void MainWindow::guiUpdate()
     if(m_ntx == 5) txMsg=ui->tx5->currentText();
     if(m_ntx == 6) txMsg=ui->tx6->text();
     int msgLength=txMsg.trimmed().length();
-    if(msgLength==0 and !m_tune and m_mode!="JTTY") on_stopTxButton_clicked();
+    if(msgLength==0 and !m_tune and !isConversationalMode()) on_stopTxButton_clicked();
 
-    if(g_iptt==0 and ((m_bTxTime and (fTR < 0.75) and (msgLength>0)) or m_tune or m_mode=="JTTY")) {
+    if(g_iptt==0 and ((m_bTxTime and (fTR < 0.75) and (msgLength>0)) or m_tune or isConversationalMode())) {
       //### Allow late starts
       icw[0]=m_ncw;
       g_iptt = 1;
@@ -9073,7 +9073,7 @@ void MainWindow::guiUpdate()
       m_tx_when_ready = true;
     }
 //    if(!m_bTxTime and !m_tune and m_mode!="FT4" and m_mode!="FT2") m_btxok=false;       //Time to stop transmitting
-    if(!m_bTxTime and !m_tune and m_mode != "JTTY") m_btxok=false;       //Time to stop transmitting
+    if(!m_bTxTime and !m_tune and !isConversationalMode()) m_btxok=false;       //Time to stop transmitting
   }
 
   if((m_mode=="WSPR" or m_mode=="FST4W") and
@@ -9282,7 +9282,7 @@ void MainWindow::guiUpdate()
       }
       msgsent[37]=0;
     }
-    if(m_mode=="JTTY") {                  // JTTY text is not generated from Tx1-Tx6
+    if(isConversationalMode()) {                  // JTTY text is not generated from Tx1-Tx6
       std::fill_n(msgsent, 37, ' ');
       msgsent[37]=0;
     }
@@ -9304,8 +9304,8 @@ void MainWindow::guiUpdate()
       m_currentMessageType = -1;
     }
     if(m_restart) {
-      if(m_mode!="JTTY") write_all("Tx",m_currentMessage);
-      if (m_config.TX_messages () and m_mode!="Echo" and m_mode!="JTTY") {
+      if(!isConversationalMode()) write_all("Tx",m_currentMessage);
+      if (m_config.TX_messages () and m_mode!="Echo" and !isConversationalMode()) {
         ui->decodedTextBrowser2->displayTransmittedText(m_currentMessage.trimmed(),m_mode,
                      ui->TxFreqSpinBox->value(),m_bFastMode,m_TRperiod,m_config.superFox());
         }
@@ -9408,8 +9408,8 @@ void MainWindow::guiUpdate()
 
     if (m_mode != "FST4W" && m_mode != "WSPR" && m_mode!="Echo")
       {
-        if(!m_tune && m_mode!="JTTY") write_all("Tx",m_currentMessage);
-        if (m_config.TX_messages () && !m_tune && SpecOp::FOX!=m_specOp && m_mode != "JTTY")
+        if(!m_tune && !isConversationalMode()) write_all("Tx",m_currentMessage);
+        if (m_config.TX_messages () && !m_tune && SpecOp::FOX!=m_specOp && !isConversationalMode())
           {
             ui->decodedTextBrowser2->displayTransmittedText(current_message.trimmed(),
                   m_mode,ui->TxFreqSpinBox->value(),m_bFastMode,m_TRperiod,m_config.superFox());
@@ -9937,7 +9937,7 @@ void MainWindow::guiUpdate()
           if(SpecOp::FOX==m_specOp and ui->tabWidget->currentIndex()==1 and foxcom_.nslots==1) {
               t=m_fm1.trimmed();
           }
-          if(m_mode=="FT4" or m_mode=="FT2" or m_mode == "JTTY") t="Tx: "+ m_currentMessage;
+          if(m_mode=="FT4" or m_mode=="FT2" or isConversationalMode()) t="Tx: "+ m_currentMessage;
           tx_status_label.setText(t.trimmed());
         }
       }
@@ -10037,7 +10037,7 @@ void MainWindow::useNextCall()
 
 void MainWindow::startTx2()
 {
-  if (m_mode == "JTTY" && !m_tune
+  if (isConversationalMode() && !m_tune
       && (!m_jttyTxActive || jttyTxCommittedSamples () <= 0)) {
     return;
   }
@@ -10079,12 +10079,12 @@ void MainWindow::startTx2()
 
 void MainWindow::stopTx()
 {
-  if (m_mode == "JTTY" && m_jttyTxActive) {
+  if (isConversationalMode() && m_jttyTxActive) {
     interruptJttyTx();
   }
   if (m_tci_audio) Q_EMIT m_config.transceiver_modulator_stop();
   else Q_EMIT endTransmitMessage ();
-  if (m_mode == "JTTY" && !m_tci_audio) {
+  if (isConversationalMode() && !m_tci_audio) {
     Q_EMIT endJttyStream ();
   }
   m_btxok = false;
@@ -10098,7 +10098,7 @@ void MainWindow::stopTx()
     ptt0Timer.start(0);
   } else {
     // JTTY stops only once its stream has drained, so it needs no tail
-    ptt0Timer.start(m_mode == "JTTY" ? 0 : 200);   //end-of-transmission sequencer delay
+    ptt0Timer.start(isConversationalMode() ? 0 : 200);   //end-of-transmission sequencer delay
     monitor (true);
     statusUpdate ();
   }
@@ -10367,7 +10367,7 @@ void MainWindow::doubleClickOnCall(Qt::KeyboardModifiers modifiers)
   } else {
     cursor=ui->decodedTextBrowser2->textCursor();
   }
-  if(m_mode=="JTTY") {
+  if(isConversationalMode()) {
     cursor.select(QTextCursor::WordUnderCursor);
     m_deCall = cursor.selectedText();
     ui->dxCallEntry->setText(m_deCall);  // resets m_jttyHisCallSnr via on_dxCallEntry_textChanged
@@ -12151,7 +12151,7 @@ void MainWindow::on_dxCallEntry_textChanged (QString const& call)
     return;
   }
   set_dateTimeQSO (-1);  // reset the QSO start time when DXCall changes
-  if (m_mode=="JTTY") m_jttyHisCallSnr = -10;  // the stale report belonged to the previous DX call
+  if (isConversationalMode()) m_jttyHisCallSnr = -10;  // the stale report belonged to the previous DX call
   m_hisCall = call;
   // DG2YCB 2026-05-12: mirror DX Call entry into WideGraph so the
   // matching waterfall label gets the bright-green active highlight.
@@ -13527,7 +13527,7 @@ void MainWindow::switch_mode (Mode mode)
   check_band_limits();
   check_button_color();
   last_mode = m_mode;
-  bool const jtty = m_mode=="JTTY";
+  bool const jtty = isConversationalMode();
   ui->autoButton->setEnabled(!jtty);
   ui->autoButton->setVisible(!jtty);
   // F1-F8 send the JTTY macros, so these menu shortcuts must not take the keys
@@ -13540,7 +13540,7 @@ void MainWindow::WSPR_config(bool b)
   ui->rh_decodes_widget->setVisible(!b);     // UR disable for AL + widescreen version
   ui->controls_stack_widget->setCurrentIndex (b && m_mode != "Echo" ? 2 : 0);
   if(m_mode=="Echo") ui->controls_stack_widget->setCurrentIndex(3);
-  if(m_mode=="JTTY") ui->controls_stack_widget->setCurrentIndex(1);
+  if(isConversationalMode()) ui->controls_stack_widget->setCurrentIndex(1);
   ui->QSO_controls_widget->setVisible (!b);
   ui->DX_controls_widget->setVisible (!b or (m_mode=="Echo"));
   ui->WSPR_controls_widget->setVisible (b);
@@ -14563,17 +14563,17 @@ void MainWindow::transmit (double snr)
     }
   }
 
-  if (m_mode == "JTTY") {
+  if (isConversationalMode()) {
     m_dateTimeSentTx3=QDateTime::currentDateTimeUtc();
     toneSpacing=-2.0;                     //Transmit a pre-computed, filtered waveform.
-    double txt=m_nsym_jtty*384.0/12000.0;
+    double txt = (m_mode == "RTTY") ? (jttyTxCommittedSamples () / 48000.0) : (m_nsym_jtty * 384.0 / 12000.0);
     if (m_tci_audio) {
       // the TCI transceiver plays JTTY text from its own queue, fed by execute_jtty_tones
-      Q_EMIT m_config.transceiver_modulator_start(m_mode, qMax(m_nsym_jtty, 1), 384.0,
+      Q_EMIT m_config.transceiver_modulator_start((m_mode == "RTTY") ? QStringLiteral("RTTY") : m_mode, qMax(m_nsym_jtty, 1), 384.0,
              m_tune ? ui->TxFreqSpinBox->value() : 1500.0, toneSpacing, false, false, snr,
              m_tune ? m_TRperiod : txt);
     } else if (m_tune) {
-      Q_EMIT sendMessage (m_mode, qMax(m_nsym_jtty, 1),
+      Q_EMIT sendMessage ((m_mode == "RTTY") ? QStringLiteral("RTTY") : m_mode, qMax(m_nsym_jtty, 1),
              384.0, ui->TxFreqSpinBox->value(), toneSpacing, m_soundOutput,
              m_config.audio_output_channel(), false, false, snr, m_TRperiod);
     } else {
@@ -14582,8 +14582,8 @@ void MainWindow::transmit (double snr)
       request.channel = m_config.audio_output_channel ();
       request.snr_db = snr;
       request.queue_epoch = m_jttyTxQueueEpoch;
-      request.symbols_length = m_nsym_jtty;
-      request.frames_per_symbol = 384.0;
+      request.symbols_length = (m_mode == "RTTY") ? int(jttyTxCommittedSamples ()) : m_nsym_jtty;
+      request.frames_per_symbol = (m_mode == "RTTY") ? 384.0 : 384.0;
       request.frequency_hz = 1500.0;
       request.tone_spacing = toneSpacing;
       request.synchronize = false;
@@ -17243,7 +17243,7 @@ void MainWindow::write_all(QString txRx, QString message, QDateTime const& rxTim
 
     t = t.asprintf("%5d",ui->TxFreqSpinBox->value());
     if (txRx=="Tx") msg="   0  0.0" + t + " " + message;
-    if (m_mode=="JTTY" and txRx=="Rx") msg=jttyAllTxtMessage(message);
+    if (isConversationalMode() and txRx=="Rx") msg=jttyAllTxtMessage(message);
     auto time = QDateTime::currentDateTimeUtc ();
     if( (txRx=="Rx" || txRx=="Ck") && !m_bFastMode ) time=m_dateTimeSeqStart;
     if (txRx=="Rx" && rxTime.isValid ()) time=rxTime;
@@ -17253,7 +17253,7 @@ void MainWindow::write_all(QString txRx, QString message, QDateTime const& rxTim
   } else {
      t = t.asprintf("%10.3f ",m_freqNominal/1.e6);
   }
-    if (m_diskData and !(m_mode=="JTTY" and txRx=="Tx")) {
+    if (m_diskData and !(isConversationalMode() and txRx=="Tx")) {
       if (m_fileDateTime.size()==11) {
         line=m_fileDateTime + "  " + t + txRx + " " + mode_string + msg;
       } else {

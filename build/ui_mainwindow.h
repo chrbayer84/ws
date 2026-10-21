@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'mainwindow.ui'
 **
-** Created by: Qt User Interface Compiler version 5.15.8
+** Created by: Qt User Interface Compiler version 5.15.18
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
 ********************************************************************************/
@@ -216,6 +216,7 @@ public:
     QAction *actionHide_AP_info;
     QAction *actionHighlight_Whitelist_entries;
     QAction *actionJTTY;
+    QAction *actionRTTY;
     QAction *actionFT2;
     QAction *actionAccept_QMAP_click_events;
     QAction *actionClaimQmapClicks;
@@ -1060,6 +1061,9 @@ public:
         actionJTTY = new QAction(MainWindow);
         actionJTTY->setObjectName(QString::fromUtf8("actionJTTY"));
         actionJTTY->setCheckable(true);
+        actionRTTY = new QAction(MainWindow);
+        actionRTTY->setObjectName(QString::fromUtf8("actionRTTY"));
+        actionRTTY->setCheckable(true);
         actionFT2 = new QAction(MainWindow);
         actionFT2->setObjectName(QString::fromUtf8("actionFT2"));
         actionFT2->setCheckable(true);
@@ -3777,6 +3781,7 @@ public:
         menuMode->addAction(actionQ65);
         menuMode->addSeparator();
         menuMode->addAction(actionJTTY);
+        menuMode->addAction(actionRTTY);
         menuMode->addAction(actionMSK144);
         menuMode->addSeparator();
         menuMode->addAction(actionFST4W);
@@ -4024,6 +4029,7 @@ public:
 #endif // QT_CONFIG(tooltip)
         actionHighlight_Whitelist_entries->setText(QCoreApplication::translate("MainWindow", "Highlight Whitelist entries", nullptr));
         actionJTTY->setText(QCoreApplication::translate("MainWindow", "JTTY", nullptr));
+        actionRTTY->setText(QCoreApplication::translate("MainWindow", "RTTY", nullptr));
         actionFT2->setText(QCoreApplication::translate("MainWindow", "FT2", nullptr));
         actionAccept_QMAP_click_events->setText(QCoreApplication::translate("MainWindow", "Accept WS-MAP/EME65 click events", nullptr));
         actionClaimQmapClicks->setText(QCoreApplication::translate("MainWindow", "Claim WS-MAP", nullptr));

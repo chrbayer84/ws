@@ -67,13 +67,13 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
       qsoText_ += QString::fromStdString(newText);
       qsoIdleFrames_ = 0;
       
-      Jtty::ReceiveUpdate update;
+      Jtty::MessageUpdate update;
       update.messageId = qsoMessageId_;
       update.frequency = centerFrequency;
       update.text = qsoText_;
-      update.startSeconds = qsoStartSeconds_;
-      update.latestSeconds = currentSeconds;
-      update.terminal = Jtty::ReceiveTerminal::Growing;
+      update.sequenceStart = qsoStartSeconds_;
+      // update.latestSeconds = currentSeconds;
+      update.complete = false;
       update.snr = static_cast<int>(qsoModem_.lastSnr());
       pendingUpdates_.push_back(update);
     }
@@ -120,13 +120,13 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
 void Decoder::flushQsoMessage(bool complete)
 {
   if (!qsoActive_) return;
-  Jtty::ReceiveUpdate update;
+  Jtty::MessageUpdate update;
   update.messageId = qsoMessageId_;
   update.frequency = qsoModem_.frequency();
   update.text = qsoText_;
-  update.startSeconds = qsoStartSeconds_;
-  update.latestSeconds = qsoStartSeconds_ + 2.0; // Approximation
-  update.terminal = complete ? Jtty::ReceiveTerminal::Complete : Jtty::ReceiveTerminal::Growing;
+  update.sequenceStart = qsoStartSeconds_;
+  // update.latestSeconds = qsoStartSeconds_ + 2.0; // Approximation
+  update.complete = complete;
   update.snr = static_cast<int>(qsoModem_.lastSnr());
   pendingUpdates_.push_back(update);
   if (complete) {
@@ -153,13 +153,13 @@ void Decoder::flushChannelMessage(int channelId, ChannelDecode const& decode, bo
   }
 
   if (ch.active) {
-    Jtty::ReceiveUpdate update;
+    Jtty::MessageUpdate update;
     update.messageId = ch.messageId;
     update.frequency = complete ? 0.0f : static_cast<float>(decode.frequency); // Just use decode freq when active
     update.text = ch.text;
-    update.startSeconds = ch.startSeconds;
-    update.latestSeconds = nextRequiredSample_ / 12000.0;
-    update.terminal = complete ? Jtty::ReceiveTerminal::Complete : Jtty::ReceiveTerminal::Growing;
+    update.sequenceStart = ch.startSeconds;
+    // update.latestSeconds = nextRequiredSample_ / 12000.0;
+    update.complete = complete;
     update.snr = static_cast<int>(decode.snr);
     pendingUpdates_.push_back(update);
     
@@ -177,9 +177,9 @@ qint64 Decoder::generateMessageId(int channelId)
   return (ms << 8) | (channelId & 0xFF);
 }
 
-QVector<Jtty::ReceiveUpdate> Decoder::takeUpdates()
+QVector<Jtty::MessageUpdate> Decoder::takeUpdates()
 {
-  QVector<Jtty::ReceiveUpdate> ret = pendingUpdates_;
+  QVector<Jtty::MessageUpdate> ret = pendingUpdates_;
   pendingUpdates_.clear();
   return ret;
 }

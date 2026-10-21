@@ -1,0 +1,11 @@
+diff a/models/Modes.cpp b/models/Modes.cpp	(rejected hunks)
+@@ -26,7 +26,8 @@ namespace
+     "FST4",
+     "FST4W",
+     "Q65",
+-    "JTTY"
++    "JTTY",
++    "RTTY"
+   };
+   std::size_t constexpr mode_names_size = sizeof (mode_names) / sizeof (mode_names[0]);
+ }

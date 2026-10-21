@@ -1,0 +1,27 @@
+diff a/TxStartPolicy.hpp b/TxStartPolicy.hpp	(rejected hunks)
+@@ -5,10 +5,15 @@
+ 
+ constexpr double TxStartLatestPeriodFraction = 0.75;
+ 
++inline bool is_conversational_mode (QString const& mode)
++{
++  return mode == "JTTY" || mode == "RTTY";
++}
++
+ inline bool requires_standard_tx_message (QString const& mode)
+ {
+   // These modes synthesize their Tx payload outside the standard Tx1-Tx6 slots.
+-  return mode != "Echo" && mode != "WSPR" && mode != "FST4W" && mode != "JTTY";
++  return mode != "Echo" && mode != "WSPR" && mode != "FST4W" && !is_conversational_mode (mode);
+ }
+ 
+ inline bool tx_payload_ready (QString const& mode, int standard_message_length)
+@@ -25,7 +30,7 @@ inline bool should_stop_for_missing_tx_payload (QString const& mode,
+ 
+ inline bool tx_start_window_open (QString const& mode, bool tx_time, double period_fraction)
+ {
+-  return mode == "JTTY"
++  return is_conversational_mode (mode)
+     || (tx_time && period_fraction < TxStartLatestPeriodFraction);
+ }
+ 

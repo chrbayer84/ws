@@ -1,0 +1,19 @@
+diff a/widgets/widegraph.cpp b/widgets/widegraph.cpp	(rejected hunks)
+@@ -283,7 +283,7 @@ void WideGraph::jttyReceptionEnded ()
+ 
+ void WideGraph::on_waterfallAvgSpinBox_valueChanged(int n)                  //Navg
+ {
+-  if (m_mode == "JTTY") drawJttyAverage ();
++  if (m_mode == "JTTY" || m_mode == "RTTY") drawJttyAverage ();
+   m_waterfallAvg = n;
+   ui->widePlot->setWaterfallAvg(n);
+ }
+@@ -370,7 +370,7 @@ void WideGraph::setTxFreq(int n)                                   //setTxFreq
+ 
+ void WideGraph::setMode(QString mode)                              //setMode
+ {
+-  if (m_mode == "JTTY" && mode != m_mode) jttyReceptionEnded ();
++  if ((m_mode == "JTTY" || m_mode == "RTTY") && mode != m_mode) jttyReceptionEnded ();
+   m_mode=mode;
+   ui->fSplitSpinBox->setVisible(m_mode.startsWith("FST4"));
+   ui->fSplitSpinBox->setEnabled(m_mode.startsWith("FST4"));

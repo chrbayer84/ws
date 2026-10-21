@@ -1,4 +1,4 @@
-# Install script for directory: /home/christian/Downloads/ws-3.2.1/src/ws/debian
+# Install script for directory: /home/christian/temp/wsjtx/build/ws/debian
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -37,15 +37,21 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
   set(CMAKE_CROSSCOMPILING "FALSE")
 endif()
 
-# Set default install directory permissions.
+# Set path to fallback-tool for dependency-resolution.
 if(NOT DEFINED CMAKE_OBJDUMP)
   set(CMAKE_OBJDUMP "/usr/bin/objdump")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/doc/ws" TYPE FILE FILES
-    "/home/christian/Downloads/ws-3.2.1/src/ws/build/debian/changelog.gz"
-    "/home/christian/Downloads/ws-3.2.1/src/ws/build/debian/copyright"
+    "/home/christian/temp/wsjtx/build/ws/build/debian/changelog.gz"
+    "/home/christian/temp/wsjtx/build/ws/build/debian/copyright"
     )
 endif()
 
+string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
+       "${CMAKE_INSTALL_MANIFEST_FILES}")
+if(CMAKE_INSTALL_LOCAL_ONLY)
+  file(WRITE "/home/christian/temp/wsjtx/build/ws/build/debian/install_local_manifest.txt"
+     "${CMAKE_INSTALL_MANIFEST_CONTENT}")
+endif()

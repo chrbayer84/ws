@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'devsetup.ui'
 **
-** Created by: Qt User Interface Compiler version 5.15.8
+** Created by: Qt User Interface Compiler version 5.15.18
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
 ********************************************************************************/
@@ -348,7 +348,7 @@ public:
 
         verticalLayout_4->addWidget(label_11);
 
-        verticalSpacer = new QSpacerItem(20, 20, QSizePolicy::Policy::Fixed, QSizePolicy::Minimum);
+        verticalSpacer = new QSpacerItem(20, 20, QSizePolicy::Minimum, QSizePolicy::Policy::Fixed);
 
         verticalLayout_4->addItem(verticalSpacer);
 
@@ -381,7 +381,7 @@ public:
 
         verticalLayout_5->addWidget(faddEntry);
 
-        verticalSpacer_3 = new QSpacerItem(20, 20, QSizePolicy::Policy::Fixed, QSizePolicy::Minimum);
+        verticalSpacer_3 = new QSpacerItem(20, 20, QSizePolicy::Minimum, QSizePolicy::Policy::Fixed);
 
         verticalLayout_5->addItem(verticalSpacer_3);
 
@@ -637,7 +637,7 @@ public:
 
         verticalLayout_7->addLayout(horizontalLayout_7);
 
-        verticalSpacer_2 = new QSpacerItem(20, 13, QSizePolicy::Policy::Fixed, QSizePolicy::Minimum);
+        verticalSpacer_2 = new QSpacerItem(20, 13, QSizePolicy::Minimum, QSizePolicy::Policy::Fixed);
 
         verticalLayout_7->addItem(verticalSpacer_2);
 
@@ -1044,7 +1044,7 @@ public:
 
         gridLayout->addLayout(horizontalLayout_19, 0, 0, 1, 1);
 
-        verticalSpacer_4 = new QSpacerItem(20, 40, QSizePolicy::Policy::Fixed, QSizePolicy::Minimum);
+        verticalSpacer_4 = new QSpacerItem(20, 40, QSizePolicy::Minimum, QSizePolicy::Policy::Fixed);
 
         gridLayout->addItem(verticalSpacer_4, 1, 0, 1, 1);
 
@@ -1148,7 +1148,7 @@ public:
 
         gridLayout->addLayout(horizontalLayout_10, 5, 0, 1, 1);
 
-        verticalSpacer_5 = new QSpacerItem(20, 40, QSizePolicy::Policy::Fixed, QSizePolicy::Minimum);
+        verticalSpacer_5 = new QSpacerItem(20, 40, QSizePolicy::Minimum, QSizePolicy::Policy::Fixed);
 
         gridLayout->addItem(verticalSpacer_5, 6, 0, 1, 1);
 
@@ -1165,7 +1165,7 @@ public:
         tab_5->setObjectName(QString::fromUtf8("tab_5"));
         gridLayout_2 = new QGridLayout(tab_5);
         gridLayout_2->setObjectName(QString::fromUtf8("gridLayout_2"));
-        verticalSpacer_6 = new QSpacerItem(20, 40, QSizePolicy::Expanding, QSizePolicy::Minimum);
+        verticalSpacer_6 = new QSpacerItem(20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
 
         gridLayout_2->addItem(verticalSpacer_6, 0, 0, 1, 1);
 
@@ -1179,7 +1179,7 @@ public:
 
         gridLayout_2->addWidget(pskReporterTcpIpBox, 4, 0, 1, 1);
 
-        verticalSpacer_7 = new QSpacerItem(20, 40, QSizePolicy::Expanding, QSizePolicy::Minimum);
+        verticalSpacer_7 = new QSpacerItem(20, 40, QSizePolicy::Minimum, QSizePolicy::Expanding);
 
         gridLayout_2->addItem(verticalSpacer_7, 5, 0, 1, 1);
 
@@ -1226,7 +1226,7 @@ public:
 
         gridLayout_2->addWidget(LiveCQ_groupBox, 1, 0, 1, 1);
 
-        verticalSpacer_8 = new QSpacerItem(20, 15, QSizePolicy::Policy::Fixed, QSizePolicy::Minimum);
+        verticalSpacer_8 = new QSpacerItem(20, 15, QSizePolicy::Minimum, QSizePolicy::Policy::Fixed);
 
         gridLayout_2->addItem(verticalSpacer_8, 2, 0, 1, 1);
 

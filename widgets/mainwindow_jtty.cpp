@@ -181,7 +181,7 @@ int MainWindow::jttySnrForSelectedWord(QString const& word, bool leftPane) const
 
 void MainWindow::on_cbIncludeTime_toggled(bool)
 {
-  if (m_mode == "JTTY") {
+  if (isConversationalMode()) {
     updateJttyDecodeHeadings();
     renderJttyAllFreqLines();
     renderJttyQsoLines();
@@ -261,6 +261,147 @@ void MainWindow::renderJttyQsoLines()
   ui->decodedTextBrowser2->setTextCursor (cursor);
   m_jttyQsoRenderedLowerCase = ui->cbLowerCase->isChecked ();
   m_jttyQsoRenderedIncludeTime = ui->cbIncludeTime->isChecked ();
+}
+
+
+bool MainWindow::rtty_decode(int k, int istart0, int istop)
+{
+  auto jttyLineDateTimeUtc = [this, k] (float tsync) -> QDateTime {
+    if (m_diskData && m_UTCdiskDateTime.isValid()) {
+      return m_UTCdiskDateTime.addMSecs(qRound64(1000.0 * tsync)).toUTC();
+    }
+    double const elapsed = qMax(0.0, double(k) / 12000.0 - double(tsync));
+    return QDateTime::currentDateTimeUtc().addMSecs(-qRound64(1000.0 * elapsed));
+  };
+  auto jttyLineDisplayDateTimeUtc = [this, &jttyLineDateTimeUtc] (float tsync) -> QDateTime {
+    if (m_diskData) {
+      return Jtty::jttyLineStartTimeUtc (m_UTCdiskDateTime, m_UTCdisk, tsync);
+    }
+    return jttyLineDateTimeUtc (tsync);
+  };
+
+  bool const newAllFreqsSession = (k <= m_jttyLastAllFreqsK);
+  m_jttyLastAllFreqsK = k;
+  if (newAllFreqsSession) {
+      flushJttyDecodeLines();
+      m_jttyAllFreqsGroupStart = QTextBlock();
+      m_jttyQsoGroupStart = QTextBlock();
+      m_jttyQsoGroupEnd = QTextBlock();
+      m_jttyQsoGroupEndPosition = -1;
+      m_jttyQsoLines.clear();
+      m_jttyAllFreqLines.clear();
+      m_bDecoded = false;
+      m_jttyLastSavedWavK0 = -1;
+      
+      m_rttyDecoder.begin(1, 0, 0); // Reset decoder session
+  }
+  float f0 = ui->RxFreqSpinBox_2->value();
+  float ftol = ui->sbFtol_2->value();
+  int nfa = m_wideGraph->nStartFreq();
+  int nfb = m_wideGraph->Fmax();
+
+  qint64 firstSearch = istart0 >= 0 ? istart0 : 0;
+  qint64 stopSearch = istop >= 0 ? istop : k;
+  
+  m_rttyDecoder.process(dec_data.d2, k, firstSearch, stopSearch, 1000, nfa, nfb, f0, ftol);
+  
+  QVector<Jtty::MessageUpdate> updates = m_rttyDecoder.takeUpdates();
+
+  bool const allHistoryChanged = Jtty::mergeMessageUpdates(
+      m_jttyAllFreqLines, updates,
+      [&jttyLineDateTimeUtc, &jttyLineDisplayDateTimeUtc] (Jtty::MessageUpdate const& update) {
+        JttyDecodeLine decodeLine;
+        decodeLine.messageId = update.messageId;
+        decodeLine.frequency = update.frequency;
+        decodeLine.text = update.text;
+        decodeLine.sequenceStart = update.sequenceStart;
+        decodeLine.messageStartUtc = jttyLineDisplayDateTimeUtc (update.sequenceStart);
+        decodeLine.complete = update.complete;
+        decodeLine.snr = update.snr;
+        decodeLine.allTxtTime = jttyLineDateTimeUtc(update.sequenceStart);
+        return decodeLine;
+      });
+
+  if (allHistoryChanged) renderJttyAllFreqLines ();
+
+  for (auto& known : m_jttyAllFreqLines) {
+      if (known.complete && !known.written) {
+          write_all("Rx", formatJttyDecodeLine(known.frequency, known.snr, known.text), known.allTxtTime);
+          known.written = true;
+      }
+  }
+
+  bool const qsoDisplayOptionsChanged = !m_jttyQsoLines.isEmpty()
+      && (m_jttyQsoRenderedLowerCase != ui->cbLowerCase->isChecked()
+          || m_jttyQsoRenderedIncludeTime != ui->cbIncludeTime->isChecked());
+  bool anyEom {false};
+  bool anyLineChanged {false};
+  for (auto const& update : updates) {
+      auto known = std::find_if(m_jttyQsoLines.begin(), m_jttyQsoLines.end(),
+                                [&update] (JttyQsoLine const& line) {
+                                  return line.messageId == update.messageId;
+                                });
+      bool const alreadyPresent = known != m_jttyQsoLines.end();
+      if (!Jtty::shouldApplyToQsoHistory(
+              alreadyPresent, update.frequency, f0, ftol)) {
+          continue;
+      }
+      if (update.complete) anyEom = true;
+
+      QString delta;
+#ifdef WIN32
+      bool startNew{false};       //Set to "true" when N1MM should start display of text on a new line
+#endif
+      if (alreadyPresent) {
+          auto const change = Jtty::compareMessages(known->text, update.text);
+          bool const frequencyChanged = known->frequency != update.frequency;
+          if (!change.messageChanged && !frequencyChanged) continue;
+          if (change.messageChanged) {
+              if (change.extendsMessage) {
+                  delta = change.appendedText;
+#ifdef WIN32
+                  startNew = change.startsMessage;
+#endif
+              } else {
+                  delta = update.text;
+#ifdef WIN32
+                  startNew = true;
+#endif
+              }
+          }
+          known->frequency = update.frequency;
+          known->text = update.text;
+      } else {
+#ifdef WIN32
+          startNew = true;
+#endif
+          delta = update.text;
+          auto const allLine = std::find_if (
+            m_jttyAllFreqLines.cbegin (), m_jttyAllFreqLines.cend (),
+            [&update] (JttyDecodeLine const& line) {
+              return line.messageId == update.messageId;
+            });
+          QDateTime const messageStartUtc = allLine != m_jttyAllFreqLines.cend ()
+            ? allLine->messageStartUtc
+            : jttyLineDisplayDateTimeUtc (update.sequenceStart);
+          m_jttyQsoLines.append({update.messageId, update.frequency, update.text,
+                                 update.sequenceStart, messageStartUtc, update.snr});
+      }
+      anyLineChanged = true;
+      m_bDecoded = true;
+
+#ifdef WIN32
+      if (m_mmttyif && !delta.isEmpty()) {
+//            m_mmttyif->echo_message_to_n1mm(append_separator(delta));
+        if(ui->cbLowerCase->isChecked()) delta = delta.toLower();
+        if(startNew) delta = "\r\n" + delta;
+        m_mmttyif->echo_message_to_n1mm(delta);
+      }
+#endif
+  }
+
+  if (anyLineChanged || qsoDisplayOptionsChanged) renderJttyQsoLines ();
+  return anyEom;
 }
 
 bool MainWindow::jtty_decode(int k, int istart0, int istop)
@@ -432,7 +573,7 @@ void MainWindow::jtty_tx(QString message)
 qint64 MainWindow::submitJttyText(QString message)
 {
   qint64 const requestId = ++m_jttyTxRequestId;
-  execute_jtty_tx(requestId, message);
+  if (m_mode == "RTTY") { execute_rtty_tx(requestId, message, true); } else { execute_jtty_tx(requestId, message); }
   return requestId;
 }
 
@@ -449,6 +590,113 @@ void MainWindow::submitJttyDraft(QString message)
   if (m_jttyDraftAcceptanceTracker.isPending (requestId)) {
     ui->Tx_Message->selectAll ();
   }
+}
+
+
+
+
+
+void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal)
+{
+  if (m_mode != "RTTY") {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
+    return;
+  }
+
+  if (ui->cbLowerCase->isChecked()) message = message.toLower();
+
+  if (isFinal && !message.isEmpty()) {
+    message += "\r\n ";
+  }
+
+  float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
+
+  if (!m_rttyTxModem) {
+    m_rttyTxModem.reset(new Rtty::RttyModem());
+  }
+
+  bool const newSession = !m_jttyTxActive;
+  if (newSession) {
+    advanceJttyTxQueueEpoch();
+    m_jttyTxUsesTciAudio = m_tci_audio;
+    m_rttyTxModem->txInit();
+  }
+  bool const useTciAudio = m_jttyTxUsesTciAudio;
+
+  std::vector<int16_t> wave;
+  if (newSession) {
+    wave = m_rttyTxModem->modulatePreamble(4, f0);
+  }
+  if (message.isEmpty()) {
+    std::vector<int16_t> idle = m_rttyTxModem->modulateIdle(f0);
+    wave.insert(wave.end(), idle.begin(), idle.end());
+  } else {
+    std::vector<int16_t> textWave = m_rttyTxModem->modulateText(message.toStdString(), f0);
+    wave.insert(wave.end(), textWave.begin(), textWave.end());
+  }
+
+  QVector<qint16> samples;
+  samples.reserve(wave.size());
+  for (int16_t val : wave) {
+    samples.append(val);
+  }
+
+  if (samples.isEmpty()) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
+    return;
+  }
+
+  if (newSession) {
+    if (useTciAudio) {
+      Q_EMIT m_config.transceiver_clear_jtty_pcm(m_jttyTxQueueEpoch);
+    } else {
+      m_jttyTxQueue->clear(m_jttyTxQueueEpoch);
+    }
+  }
+
+  bool enqueued {false};
+  TxAudioQueueProgress enqueueProgress;
+  if(useTciAudio) {
+    if (samples.size () <= TxAudioQueue::defaultCapacity ()) {
+      QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
+                       samples.size () * int (sizeof (qint16)));
+      qint64 const enqueueId = ++m_jttyTciEnqueueId;
+      m_pendingJttyTciMessages.append(PendingJttyTciMessage {
+        m_jttyTxQueueEpoch,
+        enqueueId,
+        requestId,
+        samples.size (),
+        message,
+        newSession
+      });
+      m_jttyTxActive = true;
+      Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
+                                                   enqueueId);
+      return;
+    } else {
+      LOG_WARN("RTTY TCI transmit FIFO capacity precheck failed; rejecting PCM enqueue");
+      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    }
+  } else {
+    auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
+    enqueued = result.accepted;
+    enqueueProgress = result.progress;
+    if (!enqueued) {
+      LOG_WARN("RTTY transmit FIFO overflow; rejecting PCM enqueue");
+    }
+  }
+
+  if (!enqueued) {
+    if (!useTciAudio) {
+      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    }
+    if (newSession) {
+      advanceJttyTxQueueEpoch();
+    }
+    return;
+  }
+
+  completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
 }
 
 void MainWindow::execute_jtty_tx(qint64 requestId, QString message)
@@ -487,6 +735,104 @@ void MainWindow::execute_jtty_tx(qint64 requestId, QString message)
 
   message = QString::fromLatin1(transmitFrame).trimmed();
   execute_jtty_tones(requestId, message, itone, nsym);
+}
+
+
+
+
+
+void MainWindow::execute_rtty_tones(qint64 requestId, QString const& message, int frequency)
+{
+  if ((m_jttyTxActive && jttyTxCommittedSamples() <= 0)) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
+    return;
+  }
+
+  float f0 = (frequency >= 0 ? frequency : ui->TxFreqSpinBox_2->value()) - m_XIT;
+
+  if (!m_rttyTxModem) {
+    m_rttyTxModem = std::make_unique<Rtty::RttyModem>();
+  }
+
+  bool const newSession = !m_jttyTxActive;
+  if (newSession) {
+    advanceJttyTxQueueEpoch();
+    m_jttyTxUsesTciAudio = m_tci_audio;
+  }
+  bool const useTciAudio = m_jttyTxUsesTciAudio;
+
+  if (newSession) {
+    if (useTciAudio) {
+      Q_EMIT m_config.transceiver_clear_jtty_pcm(m_jttyTxQueueEpoch);
+    } else {
+      m_jttyTxQueue->clear(m_jttyTxQueueEpoch);
+    }
+    m_rttyTxModem->txInit();
+  }
+
+  std::vector<int16_t> wave;
+  if (newSession) {
+    wave = m_rttyTxModem->modulatePreamble(4, f0);
+  }
+  if (message.isEmpty()) {
+    std::vector<int16_t> idle = m_rttyTxModem->modulateIdle(f0);
+    wave.insert(wave.end(), idle.begin(), idle.end());
+  } else {
+    std::vector<int16_t> textWave = m_rttyTxModem->modulateText(message.toStdString(), f0);
+    wave.insert(wave.end(), textWave.begin(), textWave.end());
+  }
+
+  QVector<qint16> samples;
+  samples.reserve(wave.size());
+  for (int16_t val : wave) {
+    samples.append(val);
+  }
+
+  if (samples.isEmpty()) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
+    return;
+  }
+
+  if (samples.size() > TxAudioQueue::defaultCapacity()) {
+    LOG_WARN("RTTY transmit FIFO capacity precheck failed; rejecting PCM enqueue");
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    return;
+  }
+
+  bool enqueued {false};
+  TxAudioQueueProgress enqueueProgress;
+  
+  if (useTciAudio) {
+    if (samples.size () <= TxAudioQueue::defaultCapacity ()) {
+      QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
+                       samples.size () * int (sizeof (qint16)));
+      qint64 const enqueueId = ++m_jttyTciEnqueueId;
+      m_pendingJttyTciMessages.append(PendingJttyTciMessage {
+        m_jttyTxQueueEpoch,
+        enqueueId,
+        requestId,
+        samples.size (),
+        message,
+        newSession
+      });
+      m_jttyTxActive = true;
+      Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
+                                                   enqueueId);
+      enqueued = true;
+    }
+  } else {
+    auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
+    enqueued = result.accepted;
+    enqueueProgress = result.progress;
+  }
+
+  if (!enqueued) {
+    if (!useTciAudio) Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    if (newSession) advanceJttyTxQueueEpoch();
+    return;
+  }
+
+  completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
 }
 
 void MainWindow::execute_jtty_tones(qint64 requestId, QString const& message,
@@ -717,7 +1063,7 @@ void MainWindow::abort_jtty_tx()
 
 void MainWindow::interruptJttyTx()
 {
-  if (m_mode != "JTTY" || !m_jttyTxActive) {
+  if (!isConversationalMode() || !m_jttyTxActive) {
     return;
   }
 
@@ -736,7 +1082,7 @@ void MainWindow::interruptJttyTx()
 
 void MainWindow::onJttyBackendDrained(TxAudioQueueDrainState drain)
 {
-  if (m_mode != "JTTY" || !m_jttyTxActive) {
+  if (!isConversationalMode() || !m_jttyTxActive) {
     return;
   }
 
@@ -758,7 +1104,7 @@ void MainWindow::onJttyBackendDrained(TxAudioQueueDrainState drain)
 void MainWindow::onJttyBackendEnqueueAccepted(qint64 enqueueId, qint64 sampleCount,
                                               TxAudioQueueProgress progress)
 {
-  if (m_mode != "JTTY" || !m_jttyTxActive
+  if (!isConversationalMode() || !m_jttyTxActive
       || progress.epoch != m_jttyTxQueueEpoch) {
     return;
   }
@@ -784,7 +1130,7 @@ void MainWindow::onJttyBackendEnqueueAccepted(qint64 enqueueId, qint64 sampleCou
 void MainWindow::onJttyBackendEnqueueFailed(TxAudioQueueEpoch epoch,
                                             qint64 enqueueId)
 {
-  if (m_mode != "JTTY" || !m_jttyTxActive
+  if (!isConversationalMode() || !m_jttyTxActive
       || epoch != m_jttyTxQueueEpoch) {
     return;
   }
@@ -819,7 +1165,7 @@ void MainWindow::rejectPendingJttyTciMessages(JttyTxRejectReason reason)
 
 void MainWindow::handleJttyTxWatchdog()
 {
-  if (m_mode != "JTTY" || !m_jttyTxActive) {
+  if (!isConversationalMode() || !m_jttyTxActive) {
     return;
   }
 
@@ -855,7 +1201,7 @@ void MainWindow::jtty_again()
   ui->DecodeButton->setChecked (true);
   qApp->processEvents();                                //Update the DecodeButton highlight
   replayJttyFrames (dec_data.params.kin, [this] (int k) {
-    jtty_decode(k);
+    if (m_mode == "RTTY") rtty_decode(k); else jtty_decode(k);
     return false;
   });
   flushJttyDecodeLines();
@@ -886,7 +1232,7 @@ void MainWindow::jttyDecodeAgainAt(float secondsAgo)
   ui->DecodeButton->setChecked (true);
   qApp->processEvents();                                //Update the DecodeButton highlight
   replayJttyFrames (frames, [this, istart0, istop] (int k) {
-    bool const eom = jtty_decode(k, istart0, istop);
+    bool const eom = (m_mode == "RTTY") ? rtty_decode(k, istart0, istop) : jtty_decode(k, istart0, istop);
     return eom || k >= istop;
   });
   flushJttyDecodeLines();
@@ -1030,7 +1376,7 @@ void MainWindow::handleMmttyTxString(QString message)
   auto const context = jttyNativeMacroContext(
     m_config, m_hisCall, ui->sbSerialNumber_2->value(), m_jttyHisCallSnr);
   auto const compiled = Jtty::compileN1mmMessage(message, context);
-  if (m_mode != "JTTY") {
+  if (!isConversationalMode()) {
     if (compiled.status == Jtty::N1mmCompileStatus::Literal) {
       jtty_tx(compiled.literalText);
       return;
@@ -1080,7 +1426,7 @@ void MainWindow::handleMmttyTxString(QString message)
 
 void MainWindow::handleMmttyStartTx()
 {
-  if (m_mode != "JTTY" && !m_mmttyJttyOutput.pending()) {
+  if (!isConversationalMode() && !m_mmttyJttyOutput.pending()) {
     startTx2();
     return;
   }
@@ -1091,7 +1437,7 @@ void MainWindow::handleMmttyStartTx()
 
 void MainWindow::handleMmttyStopTx()
 {
-  if (m_mode != "JTTY") {
+  if (!isConversationalMode()) {
     stopTx();
     if (!m_mmttyJttyOutput.pending()) return;
   }
@@ -1148,7 +1494,7 @@ void MainWindow::completeMmttyJttyOutput(bool drained)
 
 void MainWindow::startPendingMmttyJttyTx()
 {
-  if (m_mode != "JTTY" || !m_mmttyJttyOutput.startRequested()) return;
+  if (!isConversationalMode() || !m_mmttyJttyOutput.startRequested()) return;
 
   if (!m_jttyTxActive || jttyTxCommittedSamples () <= 0) {
     logText(QStringLiteral("MMTTY/N1MM JTTY start deferred until text is accepted"));

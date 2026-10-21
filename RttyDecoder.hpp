@@ -3,7 +3,7 @@
 
 #include "lib/rtty/rtty_modem.hpp"
 #include "lib/rtty/rtty_multi_demod.hpp"
-#include "JttyDecoder.hpp"
+#include "widgets/JttyMessages.hpp"
 #include <QVector>
 #include <QString>
 #include <QDateTime>
@@ -30,7 +30,7 @@ public:
   qint64 nextRequiredSample() const { return nextRequiredSample_; }
   qint64 nextSearchSample() const { return nextRequiredSample_; } // We process all available
 
-  QVector<Jtty::ReceiveUpdate> takeUpdates();
+  QVector<Jtty::MessageUpdate> takeUpdates();
 
 private:
   qint64 sessionId_ {0};
@@ -57,7 +57,7 @@ private:
   };
   std::vector<ChannelState> channels_;
 
-  QVector<Jtty::ReceiveUpdate> pendingUpdates_;
+  QVector<Jtty::MessageUpdate> pendingUpdates_;
 
   qint64 generateMessageId(int channelId);
   void flushQsoMessage(bool complete);
@@ -67,4 +67,3 @@ private:
 } // namespace Rtty
 
 #endif // RTTY_DECODER_HPP
-diff --git a/TxStartPolicy.hpp b/TxStartPolicy.hpp
