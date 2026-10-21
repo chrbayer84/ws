@@ -1664,6 +1664,52 @@ void MainWindow::finishJttyDecodeUi()
   m_startAnother=m_loopall;
 }
 
+
+
+void MainWindow::on_actionRTTY_triggered()
+{
+  if (m_auto) auto_tx_mode (false);
+  
+  on_stopButton_clicked();
+  m_mode = "RTTY";
+  ui->actionRTTY->setChecked(true);
+  switch_mode (Modes::RTTY);
+  WSPR_config(false);
+  VHF_features_enabled(false);
+  m_wideGraph->setMode(m_mode);
+  m_fastGraph->hide();
+  m_wideGraph->showNormal();
+  ui->cbAutoSeq->setChecked(false);
+  m_bFastMode=false;
+  m_bFast9=false;
+  m_nsps=6912;
+  m_FFTSize = m_nsps / 2;
+  if (m_tci_audio) Q_EMIT m_config.transceiver_blocksize (m_FFTSize);
+  else Q_EMIT FFTSize (m_FFTSize);
+  m_TRperiod=180;
+  m_hsymStop=620;
+  m_wideGraph->setPeriod(m_TRperiod,m_nsps);
+  if (!m_tci_audio) {
+    m_modulator->setTRPeriod(m_TRperiod);
+    m_detector->setTRPeriod(m_TRperiod);
+  }
+  ui->TxFreqSpinBox_2->setValue(1500);
+  ui->RxFreqSpinBox_2->setValue(1500);
+  ui->sbFtol_2->values ({2, 5, 10, 20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500});
+  m_wideGraph->setRxFreq(ui->RxFreqSpinBox_2->value());
+  m_wideGraph->setTol(ui->sbFtol_2->value());
+  updateJttyDecodeHeadings();
+  ui->lh_decodes_title_label->setText(tr ("All Decodes"));
+  ui->rh_decodes_title_label->setText(tr ("QSO Frequency"));
+  displayWidgets(nWidgets("11111100010011100001000000010000000000"));
+  ui->actionMediumDecode->setChecked(true);
+  ui->actionQuickDecode->setEnabled(false);
+  ui->actionDeepestDecode->setEnabled(false);
+  setup_status_bar (false);
+  monitor(true);
+  statusChanged();
+}
+
 void MainWindow::on_actionJTTY_triggered()
 {
   // JTTY keys the transmitter whenever Tx is enabled, so never arrive with

@@ -1192,6 +1192,7 @@ private:
   QString jttyAllTxtMessage(QString const& message) const;
   void finishJttyDecodeUi();
   Q_SLOT void on_actionJTTY_triggered();
+  Q_SLOT void on_actionRTTY_triggered();
   Q_SLOT void on_cbIncludeTime_toggled(bool b);
   Q_SLOT void on_comboBoxJttyStyle_currentIndexChanged(int index);
   Q_SLOT void on_RxFreqSpinBox_2_valueChanged(int n);
