@@ -1,10 +1,52 @@
-Start testing: Oct 21 10:39 EDT
+Start testing: Oct 21 12:05 EDT
 ----------------------------------------------------------
+4/6 Testing: test_rtty_baudot
+4/6 Test: test_rtty_baudot
+Command: "/home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty/test_rtty_baudot"
+Directory: /home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty
+"test_rtty_baudot" start time: Oct 21 12:05 EDT
+Output:
+----------------------------------------------------------
+Running testBaudotEncodingAndDecoding...
+test_rtty_baudot: all checks passed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Pass Reason:
+Required regular expression found. Regex=[test_rtty_baudot: all checks passed]
+"test_rtty_baudot" end time: Oct 21 12:05 EDT
+"test_rtty_baudot" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/6 Testing: test_rtty_modem
+5/6 Test: test_rtty_modem
+Command: "/home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty/test_rtty_modem"
+Directory: /home/christian/temp/wsjtx/build/ws/build/tests/unit/rtty
+"test_rtty_modem" start time: Oct 21 12:05 EDT
+Output:
+----------------------------------------------------------
+Running testModemLoopback...
+Input text: CQ DE K1JT TEST RTTY
+Generated txWave size: 174240
+Middle 10 txWave samples (around index 50000): 14843 20546 25367 29101 31585 32714 32439 30771 27783 23601 
+Decimated rxWave size: 43560
+Middle 10 rxWave samples (around index 12500): 14843 31585 27783 5901 -19833 -32674 -24257 -43 24222 32745 
+Decoded text: A K1JT TEST RTT
+test_rtty_modem: all checks passed
+<end of output>
+Test time =   0.05 sec
+----------------------------------------------------------
+Test Pass Reason:
+Required regular expression found. Regex=[test_rtty_modem: all checks passed]
+"test_rtty_modem" end time: Oct 21 12:05 EDT
+"test_rtty_modem" time elapsed: 00:00:00
+----------------------------------------------------------
+
 6/6 Testing: test_tx_start_policy
 6/6 Test: test_tx_start_policy
 Command: "/home/christian/temp/wsjtx/build/ws/build/tests/unit/common/test_tx_start_policy"
 Directory: /home/christian/temp/wsjtx/build/ws/build/tests/unit/common
-"test_tx_start_policy" start time: Oct 21 10:39 EDT
+"test_tx_start_policy" start time: Oct 21 12:05 EDT
 Output:
 ----------------------------------------------------------
 ********* Start testing of TestTxStartPolicy *********
@@ -19,15 +61,15 @@ PASS   : TestTxStartPolicy::generatedPayloadModesRespectStartWindow()
 PASS   : TestTxStartPolicy::tuningCanStartWithoutPayload()
 PASS   : TestTxStartPolicy::rejectedGeneratedMessageBlocksTransmit()
 PASS   : TestTxStartPolicy::cleanupTestCase()
-Totals: 10 passed, 0 failed, 0 skipped, 0 blacklisted, 0ms
+Totals: 10 passed, 0 failed, 0 skipped, 0 blacklisted, 1ms
 ********* Finished testing of TestTxStartPolicy *********
 <end of output>
 Test time =   0.01 sec
 ----------------------------------------------------------
 Test Pass Reason:
 Required regular expression found. Regex=[Totals: .* passed, 0 failed]
-"test_tx_start_policy" end time: Oct 21 10:39 EDT
+"test_tx_start_policy" end time: Oct 21 12:05 EDT
 "test_tx_start_policy" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Oct 21 10:39 EDT
+End testing: Oct 21 12:05 EDT
