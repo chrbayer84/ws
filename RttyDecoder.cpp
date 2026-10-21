@@ -40,21 +40,19 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
 {
   (void)stopSample;
   (void)maxSteps;
-  (void)highFrequency;
   (void)tolerance;
-  (void)lowFrequency;
   if (!samples || count <= 0) return 0;
 
-  // Use centerFrequency +/- tolerance for bandpass filtering
-  float lowFreq = centerFrequency - tolerance;
-  float highFreq = centerFrequency + tolerance;
-  
+  // QSO Modem (RH Pane): Only decode at the RX frequency +/- tolerance
+  // No bandpass filter on the modem itself - it processes the full signal
+  // but we set its center frequency for proper demodulation
   qsoModem_.setFrequency(centerFrequency);
-  // Increased squelch from 1.5 to 3.0 (~4.8 dB) to reduce garbage decodes
   qsoModem_.setSquelch(3.0); 
   qsoModem_.rxProcess(samples, count);
 
-  multiDemod_.setBandpass(lowFreq, highFreq);
+  // Multi-Demod (LH Pane): Scan the FULL passband (lowFrequency to highFrequency)
+  // to show all decodes across the waterfall
+  multiDemod_.setBandpass(lowFrequency, highFrequency);
   multiDemod_.setSquelch(3.0);
   multiDemod_.rxProcess(samples, count);
 

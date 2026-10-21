@@ -14570,29 +14570,60 @@ void MainWindow::transmit (double snr)
   if (isConversationalMode()) {
     m_dateTimeSentTx3=QDateTime::currentDateTimeUtc();
     toneSpacing=-2.0;                     //Transmit a pre-computed, filtered waveform.
-    double txt = (m_mode == "RTTY") ? (jttyTxCommittedSamples () / 48000.0) : (m_nsym_jtty * 384.0 / 12000.0);
-    if (m_tci_audio) {
-      // the TCI transceiver plays JTTY text from its own queue, fed by execute_jtty_tones
-      Q_EMIT m_config.transceiver_modulator_start((m_mode == "RTTY") ? QStringLiteral("RTTY") : m_mode, qMax(m_nsym_jtty, 1), 384.0,
-             m_tune ? ui->TxFreqSpinBox->value() : 1500.0, toneSpacing, false, false, snr,
-             m_tune ? m_TRperiod : txt);
-    } else if (m_tune) {
-      Q_EMIT sendMessage ((m_mode == "RTTY") ? QStringLiteral("RTTY") : m_mode, qMax(m_nsym_jtty, 1),
-             384.0, ui->TxFreqSpinBox->value(), toneSpacing, m_soundOutput,
-             m_config.audio_output_channel(), false, false, snr, m_TRperiod);
+    if (m_mode == "RTTY") {
+      // RTTY: 45.45 baud, 48 kHz sample rate = 1056 samples/symbol
+      double const rttySamplesPerSymbol = 1056.0;
+      double txt = jttyTxCommittedSamples() / 48000.0;
+      int rttySymbols = qMax(1, int(jttyTxCommittedSamples()));
+      if (m_tci_audio) {
+        Q_EMIT m_config.transceiver_modulator_start(QStringLiteral("RTTY"), rttySymbols, rttySamplesPerSymbol,
+               m_tune ? (ui->TxFreqSpinBox_2->value() - m_XIT) : (ui->TxFreqSpinBox_2->value() - m_XIT),
+               toneSpacing, false, false, snr,
+               m_tune ? m_TRperiod : txt);
+      } else if (m_tune) {
+        Q_EMIT sendMessage (QStringLiteral("RTTY"), rttySymbols,
+               rttySamplesPerSymbol, ui->TxFreqSpinBox_2->value() - m_XIT, toneSpacing, m_soundOutput,
+               m_config.audio_output_channel(), false, false, snr, m_TRperiod);
+      } else {
+        TxEvidence::TxRequest request;
+        request.mode = m_mode;
+        request.channel = m_config.audio_output_channel ();
+        request.snr_db = snr;
+        request.queue_epoch = m_jttyTxQueueEpoch;
+        request.symbols_length = rttySymbols;
+        request.frames_per_symbol = rttySamplesPerSymbol;
+        request.frequency_hz = ui->TxFreqSpinBox_2->value() - m_XIT;
+        request.tone_spacing = toneSpacing;
+        request.synchronize = false;
+        request.tr_period_s = txt;
+        Q_EMIT startJttyStream (request, m_soundOutput);
+      }
     } else {
-      TxEvidence::TxRequest request;
-      request.mode = m_mode;
-      request.channel = m_config.audio_output_channel ();
-      request.snr_db = snr;
-      request.queue_epoch = m_jttyTxQueueEpoch;
-      request.symbols_length = (m_mode == "RTTY") ? int(jttyTxCommittedSamples ()) : m_nsym_jtty;
-      request.frames_per_symbol = (m_mode == "RTTY") ? 384.0 : 384.0;
-      request.frequency_hz = 1500.0;
-      request.tone_spacing = toneSpacing;
-      request.synchronize = false;
-      request.tr_period_s = txt;
-      Q_EMIT startJttyStream (request, m_soundOutput);
+      // JTTY: 12 kHz sample rate, 384 samples/symbol
+      double txt = m_nsym_jtty * 384.0 / 12000.0;
+      if (m_tci_audio) {
+        Q_EMIT m_config.transceiver_modulator_start(m_mode, qMax(m_nsym_jtty, 1), 384.0,
+               m_tune ? (ui->TxFreqSpinBox_2->value() - m_XIT) : (ui->TxFreqSpinBox_2->value() - m_XIT),
+               toneSpacing, false, false, snr,
+               m_tune ? m_TRperiod : txt);
+      } else if (m_tune) {
+        Q_EMIT sendMessage (m_mode, qMax(m_nsym_jtty, 1),
+               384.0, ui->TxFreqSpinBox_2->value() - m_XIT, toneSpacing, m_soundOutput,
+               m_config.audio_output_channel(), false, false, snr, m_TRperiod);
+      } else {
+        TxEvidence::TxRequest request;
+        request.mode = m_mode;
+        request.channel = m_config.audio_output_channel ();
+        request.snr_db = snr;
+        request.queue_epoch = m_jttyTxQueueEpoch;
+        request.symbols_length = m_nsym_jtty;
+        request.frames_per_symbol = 384.0;
+        request.frequency_hz = ui->TxFreqSpinBox_2->value() - m_XIT;
+        request.tone_spacing = toneSpacing;
+        request.synchronize = false;
+        request.tr_period_s = txt;
+        Q_EMIT startJttyStream (request, m_soundOutput);
+      }
     }
   }
 
