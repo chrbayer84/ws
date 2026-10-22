@@ -101,3 +101,65 @@ Target directory: Root / `widgets/` / `Modulator/`
 
 1. Verify end-to-end operation against existing WSJT-X test harnesses.
 2. Maintain and update `doc/RTTY_IMPLEMENTATION_STATUS.md`.
+
+---
+
+## 3. PSK31 Integration Implementation Plan
+
+### 3.1 Overview
+PSK31 (31.25 baud BPSK with Varicode) is an ultra-narrowband conversational digital mode designed by Peter Martinez (G3PLX). By leveraging the conversational UI, macros, audio queues, and panoramic decoding framework established during the RTTY implementation, PSK31 can be integrated natively into WSJT-X Improved without architectural duplication.
+
+### 3.2 Evaluation of fldigi PSK31 Implementation
+Analysis of `fldigi`'s implementation (`psk.cxx`, `pskvaricode.cxx`, `pskcoeff.cxx`, `viewpsk.cxx`):
+1. **Varicode Encoding/Decoding (`pskvaricode.cxx`)**:
+   - Variable-length Huffman code where frequently used characters are assigned fewer bits (e.g. `'e'` = `"11"`).
+   - Characters never contain consecutive zero bits (`"00"`).
+   - The sequence `"00"` acts strictly as an inter-character delimiter.
+   - Decode is table-driven using a 256-entry lookup table (`varicodetab2`).
+2. **Modulation & Pulse Shaping (`psk.cxx`)**:
+   - Symbol rate is $31.25\text{ baud}$ ($T_s = 32\text{ ms}$).
+   - Bit `1`: 0° phase shift. Bit `0`: 180° ($\pi$ rad) phase shift.
+   - Raised-cosine amplitude shaping: On phase reversals, the envelope smoothly attenuates to 0 via $A(t) = 0.5(1 + \cos(\pi t / T_s))$, yielding an occupied bandwidth of only ~31.25 Hz with minimal spectral splatter.
+3. **Demodulation & Timing Recovery (`psk.cxx` / `viewpsk.cxx`)**:
+   - Heterodyne down-conversion of input audio to baseband I/Q.
+   - Matched filtering with raised-cosine FIR filters (`fir1`, `fir2`).
+   - G3PLX symbol clock recovery: 16-sample circular envelope buffer (`syncbuf`) comparing symmetry between first and second halves of the symbol period to adjust `bitclk`.
+   - Differential phase detection: $\Delta\phi = \arg(z_k \cdot z_{k-1}^*)$. If $|\Delta\phi| > \pi/2 \implies 0$; else $\implies 1$.
+   - Squelch / DCD: Measures phase coherence $Q = |\langle e^{j 2\Delta\phi} \rangle|^2$.
+
+### 3.3 Phased Implementation Steps
+1. **Phase 1: DSP Engine (`lib/psk/`)**:
+   - `lib/psk/psk_varicode.hpp` / `.cpp`: Clean, standalone Varicode encode and decode functions.
+   - `lib/psk/psk_modem.hpp` / `.cpp`: Single-carrier BPSK31 modem (48 kHz TX synthesis, 12 kHz RX demodulation, NCO, matched FIR filtering, symbol timing recovery, phase slicer, DCD squelch, and AFC).
+   - `lib/psk/psk_multi_demod.hpp` / `.cpp`: Panoramic multi-channel demodulator tracking 30+ simultaneous PSK31 signals across the band, parallelized using OpenMP.
+2. **Phase 2: Qt Decoder Bridge (`PskDecoder.hpp` / `.cpp`)**:
+   - Adapts `qsoModem_` and `multiDemod_` to the Qt environment, processing incremental 12 kHz audio slices and emitting `Jtty::MessageUpdate` records for UI rendering.
+3. **Phase 3: GUI & Mode Wiring**:
+   - Add `PSK31` to `Modes::Mode` in `models/Modes.hpp` / `Modes.cpp`.
+   - Add `actionPSK31` to main menu (`mainwindow.ui`).
+   - Add `"PSK31"` to `is_conversational_mode()` in `TxStartPolicy.hpp` and `mainwindow.h`.
+   - Add waterfall goalpost markers and vertical bars in `widgets/plotter.cpp` centered at $f_0 \pm 15.6\text{ Hz}$.
+   - Route audio streaming through `psk_decode()` and TX generation through `execute_psk_tx()` in `widgets/mainwindow_jtty.cpp`.
+4. **Phase 4: Unit Testing**:
+   - `test_psk_varicode`: Varicode encode/decode validation across the full ASCII set.
+   - `test_psk_modem`: End-to-end loopback test feeding 48 kHz modulated audio into the 12 kHz demodulator.
+
+---
+
+## 4. Anticipated Pitfalls, RTTY Learnings, and Technical Solutions
+
+During the native Baudot RTTY implementation, several subtle DSP and architectural issues were encountered and resolved. The following table and breakdown details how to avoid repeating these pitfalls when implementing PSK31:
+
+### 4.1 Summary of Pitfalls & Solutions
+
+| Area | Pitfall Experienced in RTTY | Risk in PSK31 Port | Engineered Solution |
+| :--- | :--- | :--- | :--- |
+| **Audio Slicing** | Passing full audio buffer (`dec_data.d2`) every 40 ms caused $O(N^2)$ CPU spike and froze GUI. | PSK31 FIR filters and timing clock `bitclk` will corrupt or freeze under full re-processing. | Pass only incremental audio slices (`d2 + last_k`, ~480–1200 samples) to `psk_decode()`, keeping `last_k` monotonic. |
+| **State Reset** | Filter re-initialization inside audio loops reset FFT/filter states, dropping characters. | Resetting FIR filters or NCO `phaseacc` causes catastrophic phase discontinuities. | Guard all filter and frequency setters with change-detection checks (`if (freq != lastFreq)`). Never reset state per audio buffer. |
+| **Multi-Channel CPU** | Panoramic 30-channel demodulator consumed excessive CPU on single thread. | 30 complex FIR filters and NCOs will cause buffer overruns on low-power CPUs (e.g. Raspberry Pi). | Parallelize channel processing loop in `PskMultiDemod::rxProcess()` with OpenMP (`#pragma omp parallel for`). |
+| **AFC Stability** | Scale factor and derivative errors in AFC formula caused center frequency to bounce. | PSK31 bandwidth is only 31.25 Hz; aggressive AFC will jump to adjacent signals or oscillate wildly. | Clamp AFC step size to $\pm \text{baud}/4$ ($\pm 7.8\text{ Hz}$), require confirmed DCD lock, and apply heavy exponential smoothing (`decayavg`). |
+| **TX Postamble** | Abrupt carrier shutdown or trailing space created trailing phantom `'H'` character artifact. | Receiver triggers on `"00"`. Abrupt carrier drop leaves unresolved phase, generating random garbage characters. | Append 28–32 bits of unmodulated carrier / pad bits, ramp down amplitude to 0 with raised-cosine taper, and cleanly flush before releasing PTT. |
+| **TxStartPolicy** | Missing mode check in `TxStartPolicy.hpp` caused 100ms abort loop due to missing FT8 message payload. | Transmission fails to start; transceiver PTT clicks off immediately after assertion. | Include `"PSK31"` in `is_conversational_mode()` within `TxStartPolicy.hpp` and add corresponding unit test in `test_tx_start_policy.cpp`. |
+| **Status Bar Display** | `guiUpdate()` wiped conversational status bar message with spaces every 100 ms. | Live TX text does not display on the bottom status bar. | Ensure `MainWindow::guiUpdate()` guards conversational modes (`isConversationalMode()`), preventing FT8 block logic from clearing `m_currentMessage`. |
+| **Frequency Standard** | Ambiguity between Mark tone and Center frequency caused waterfall marker offset. | PSK31 center carrier must match waterfall marker center, GUI spinner, and decode logs. | Adopt Center Frequency ($f_0$) universally across GUI spinners, narrow goalpost markers ($f_0 \pm 15.6\text{ Hz}$), and decode reporting. |
+| **Squelch / Ghosting** | Raw noise triggered false decodes, generating single-character fragments. | Random phase changes in background noise easily mimic valid Varicode bit patterns. | Require vector coherence metric $Q > \text{threshold}$, confirm DCD state over multiple symbols, and discard fragments $< 3$ characters. |
