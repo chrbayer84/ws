@@ -267,14 +267,22 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         prevSym = currSym;
     };
 
+    // PSK31 preamble: 2.5 seconds of alternating 0/1 (phase reversals)
+    // At 31.25 baud, this is 78 symbols = 39 phase reversals → 15.625 Hz tone for sync
+    for (int i = 0; i < 78; i++) {
+        sendSymbol(i & 1);
+    }
+
+    // Start of message marker: two consecutive 1 bits (no phase change)
     sendSymbol(1);
-    sendSymbol(0);
+    sendSymbol(1);
 
     for (unsigned char uc : text) {
         const char* code = Psk::varicode_encode(uc);
         for (int i = 0; code[i]; i++) {
             sendSymbol(code[i] - '0');
         }
+        // Inter-character delimiter "00"
         sendSymbol(0);
         sendSymbol(0);
     }
@@ -285,6 +293,7 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
 }
 
 void PskModem::modulatePostamble(double f0) {
+    // Postamble: unmodulated carrier (all 1 bits = no phase change) with amplitude taper
     cmplx currSym(1.0, 0.0);
     double txPhaseInc = TWOPI * f0 / txSampleRate_;
     double txPhase = 0.0;

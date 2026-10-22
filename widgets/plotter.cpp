@@ -704,6 +704,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   if(m_mode=="FT8") bw=7*12000.0/1920.0;     //FT8
   if(m_mode=="JTTY") bw=3*12000.0/384.0;     //JTTY
   if(m_mode=="RTTY") bw=170.0;               //RTTY standard shift
+  if(m_mode=="PSK31") bw=31.25;              //PSK31 baud rate ~ bandwidth
   if(m_mode=="FT4") bw=3*12000.0/576.0;      //FT4
   if(m_mode=="FT2") bw=3*12000.0/288.0;      //FT2
   if(m_mode.startsWith("FST4")) {
@@ -807,16 +808,16 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
       painter0.drawLine(x2,25,x2-5,20);
     }
 
-    if(m_mode=="RTTY") {
+    if(m_mode=="RTTY" or m_mode=="PSK31") {
       painter0.setPen(penGreen);
       x1=XfromFreq(m_rxFreq-m_tol);
       x2=XfromFreq(m_rxFreq+m_tol);
       painter0.drawLine(x1,26,x2,26);           // Tolerance bar centered on rxFreq
-      x1=XfromFreq(m_rxFreq-0.5*bw);            // Lower tone (Space, -85 Hz)
+      x1=XfromFreq(m_rxFreq-0.5*bw);            // Lower tone (Space for RTTY, lower edge for PSK31)
       painter0.drawLine(x1,20,x1,26);
       x3=XfromFreq(m_rxFreq);                   // Center frequency tick (f0)
       painter0.drawLine(x3,17,x3,26);
-      x6=XfromFreq(m_rxFreq+0.5*bw);            // Upper tone (Mark, +85 Hz)
+      x6=XfromFreq(m_rxFreq+0.5*bw);            // Upper tone (Mark for RTTY, upper edge for PSK31)
       painter0.drawLine(x6,20,x6,26);
     } else if(m_mode=="Q65" or m_mode=="JTTY" or (m_mode=="JT65" and m_bVHF) or (m_mode=="FT8" and m_bSuperHound)) {
       painter0.setPen(penGreen);
@@ -884,7 +885,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red bars
-  if(m_mode=="RTTY") {
+  if(m_mode=="RTTY" or m_mode=="PSK31") {
     x1=XfromFreq(m_txFreq - 0.5*bw);
     x2=XfromFreq(m_txFreq + 0.5*bw);
     if (m_bars) {
@@ -906,7 +907,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red goal post
-  if(m_mode=="RTTY") {
+  if(m_mode=="RTTY" or m_mode=="PSK31") {
     painter0.setPen(penRed);
     x1=XfromFreq(m_txFreq - 0.5*bw);
     x2=XfromFreq(m_txFreq + 0.5*bw);
