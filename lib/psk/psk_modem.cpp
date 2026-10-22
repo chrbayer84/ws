@@ -267,15 +267,11 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         prevSym = currSym;
     };
 
-    // PSK31 preamble: 2.5 seconds of alternating 0/1 (phase reversals)
-    // At 31.25 baud, this is 78 symbols = 39 phase reversals → 15.625 Hz tone for sync
-    for (int i = 0; i < 78; i++) {
-        sendSymbol(i & 1);
+    // PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift)
+    // Matches fldigi standard BPSK31 preamble (dcdbits = 32)
+    for (int i = 0; i < 32; i++) {
+        sendSymbol(0);
     }
-
-    // Start of message marker: two consecutive 1 bits (no phase change)
-    sendSymbol(1);
-    sendSymbol(1);
 
     for (unsigned char uc : text) {
         const char* code = Psk::varicode_encode(uc);
@@ -287,16 +283,14 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         sendSymbol(0);
     }
 
-    modulatePostamble(f0);
+    // PSK31 postamble: 32 unmodulated carrier symbols (symbol 1 = bit 1 = 0° phase)
+    // Matches fldigi standard BPSK31 postamble (dcdbits = 32)
+    for (int i = 0; i < 32; i++) {
+        sendSymbol(1);
+    }
 
-    return txBuffer_;
-}
-
-void PskModem::modulatePostamble(double f0) {
-    // Postamble: unmodulated carrier (all 1 bits = no phase change) with amplitude taper
+    // Final carrier ramp-down
     cmplx currSym(1.0, 0.0);
-    double txPhaseInc = TWOPI * f0 / txSampleRate_;
-    double txPhase = 0.0;
     for (int i = 0; i < 32; i++) {
         for (int j = 0; j < SAMPLES_PER_SYMBOL_TX; j++) {
             double out = currSym.real() * std::cos(txPhase) - currSym.imag() * std::sin(txPhase);
@@ -307,6 +301,13 @@ void PskModem::modulatePostamble(double f0) {
         }
     }
     txBuffer_.insert(txBuffer_.end(), 4800, 0);
+
+    return txBuffer_;
+}
+
+void PskModem::modulatePostamble(double f0) {
+    (void)f0;
+    // Postamble is now handled inline in modulateText()
 }
 
 } // namespace Psk
