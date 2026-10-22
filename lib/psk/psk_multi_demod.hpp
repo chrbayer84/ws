@@ -10,7 +10,7 @@ namespace Psk {
 
 class PskMultiDemod {
 public:
-    static constexpr int MAX_CHANNELS = 32;
+    static constexpr int MAX_CHANNELS = 128;
     static constexpr int DEFAULT_LOW_FREQ = 200;
     static constexpr int DEFAULT_HIGH_FREQ = 2800;
 

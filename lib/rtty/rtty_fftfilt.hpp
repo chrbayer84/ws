@@ -4,6 +4,7 @@
 #include "rtty_filters.hpp"
 #include <fftw3.h>
 #include <cstring>
+#include <vector>
 
 namespace Rtty
 {
@@ -38,6 +39,7 @@ namespace Rtty
     fftwf_complex * freqdata_ {nullptr};
     fftwf_complex * ovlbuf_ {nullptr};
     fftwf_complex * output_ {nullptr};
+    std::vector<cmplx> outbuf_;
     int inptr_ {0};
     int pass_ {0};
   };

@@ -74,6 +74,28 @@ int main() {
         printf("SUCCESS: Decoded exact message '%s'\n", testText.c_str());
     }
 
+    // Test 6: Short message round-trip ("CQ WA4YA CQ")
+    std::string const shortMsg = "CQ WA4YA CQ";
+    std::vector<int16_t> shortTx = modem.modulateText(shortMsg, 1500.0);
+    std::vector<int16_t> shortRx;
+    shortRx.reserve(shortTx.size() / 4);
+    for (size_t i = 0; i < shortTx.size(); i += 4) {
+        shortRx.push_back(shortTx[i]);
+    }
+    modem.rxInit();
+    for (size_t offset = 0; offset < shortRx.size(); offset += chunkSize) {
+        size_t count = std::min(chunkSize, shortRx.size() - offset);
+        modem.rxProcess(shortRx.data() + offset, static_cast<int>(count));
+    }
+    std::string shortDecoded = modem.takeOutput();
+    printf("INFO: Short message decoded text: '%s'\n", shortDecoded.c_str());
+    if (shortDecoded.find(shortMsg) == std::string::npos) {
+        printf("FAIL: Short message decoded text does not contain '%s'\n", shortMsg.c_str());
+        all_passed = false;
+    } else {
+        printf("SUCCESS: Decoded exact short message '%s'\n", shortMsg.c_str());
+    }
+
     if (all_passed) {
         printf("test_psk_modem: all checks passed\n");
         return 0;

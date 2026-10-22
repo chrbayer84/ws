@@ -21,8 +21,15 @@ void testModemLoopback()
   std::string const testText = "CQ DE K1JT TEST RTTY";
   std::cout << "Input text: " << testText << std::endl;
 
-  // Modulate text at 48000 Hz
-  std::vector<int16_t> txWave = modem.modulateText(testText, 1500.0);
+  // Modulate preamble and text at 48000 Hz (matching real transmission)
+  std::vector<int16_t> pre = modem.modulatePreamble(8, 1500.0);
+  std::vector<int16_t> textWave = modem.modulateText(testText, 1500.0);
+  std::vector<int16_t> post = modem.modulatePostamble(1500.0);
+  std::vector<int16_t> txWave;
+  txWave.insert(txWave.end(), pre.begin(), pre.end());
+  txWave.insert(txWave.end(), textWave.begin(), textWave.end());
+  txWave.insert(txWave.end(), post.begin(), post.end());
+  txWave.insert(txWave.end(), 4800, 0); // 100ms silence
   std::cout << "Generated txWave size: " << txWave.size() << std::endl;
   std::cout << "Middle 10 txWave samples (around index 50000): ";
   for (int i = 50000; i < 50010 && i < (int)txWave.size(); ++i) {
@@ -54,6 +61,33 @@ void testModemLoopback()
   // We should expect a clean decode
   assert(!decodedText.empty());
   assert(decodedText.find("DE K1JT") != std::string::npos);
+
+  // Test short message ("CQ WA4YA CQ")
+  std::string const shortText = "CQ WA4YA CQ";
+  std::vector<int16_t> shortPre = modem.modulatePreamble(8, 1500.0);
+  std::vector<int16_t> shortTxt = modem.modulateText(shortText, 1500.0);
+  std::vector<int16_t> shortPost = modem.modulatePostamble(1500.0);
+  std::vector<int16_t> shortTx;
+  shortTx.insert(shortTx.end(), shortPre.begin(), shortPre.end());
+  shortTx.insert(shortTx.end(), shortTxt.begin(), shortTxt.end());
+  shortTx.insert(shortTx.end(), shortPost.begin(), shortPost.end());
+  shortTx.insert(shortTx.end(), 4800, 0);
+
+  std::vector<int16_t> shortRx;
+  shortRx.reserve(shortTx.size() / 4);
+  for (size_t i = 0; i < shortTx.size(); i += 4) {
+    shortRx.push_back(shortTx[i]);
+  }
+
+  modem.rxInit();
+  for (size_t offset = 0; offset < shortRx.size(); offset += 480) {
+    size_t count = std::min((size_t)480, shortRx.size() - offset);
+    modem.rxProcess(shortRx.data() + offset, static_cast<int>(count));
+  }
+  std::string shortDecoded = modem.takeDecodedText();
+  std::cout << "Short message decoded: " << shortDecoded << std::endl;
+  assert(!shortDecoded.empty());
+  assert(shortDecoded.find("WA4YA") != std::string::npos);
 
   std::cout << "test_rtty_modem: all checks passed" << std::endl;
 }

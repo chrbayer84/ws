@@ -86,8 +86,8 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
     }
   } else if (qsoActive_) {
     qsoIdleFrames_++;
-    // If no text for ~250ms (squelch closed), flush completed message
-    if (qsoIdleFrames_ > 6) {
+    // If no text for ~1.0s (transmission finished), flush completed message
+    if (qsoIdleFrames_ > 25) {
       flushQsoMessage(true);
     }
   }
@@ -109,7 +109,7 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
     }
     if (!found && channels_[i].active) {
       channels_[i].idleFrames++;
-      if (channels_[i].idleFrames > 6) {
+      if (channels_[i].idleFrames > 25) {
         // Complete it
         ChannelDecode dummy;
         dummy.channelId = i;

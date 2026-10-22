@@ -49,12 +49,12 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
     qsoCenterFrequency_ = centerFrequency;
     qsoModem_.setFrequency(centerFrequency);
   }
-  qsoModem_.setSquelch(5.0);
+  qsoModem_.setSquelch(20.0);
   qsoModem_.rxProcess(samples, count);
 
   // Multi-Demod (LH Pane): Scan the FULL passband (lowFrequency to highFrequency)
   multiDemod_.setFrequencyRange(lowFrequency, highFrequency);
-  multiDemod_.setSquelch(5.0);
+  multiDemod_.setSquelch(20.0);
   multiDemod_.rxProcess(samples, count);
 
   double currentSeconds = static_cast<double>(firstSample) / 12000.0;
@@ -83,23 +83,30 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
     }
   } else if (qsoActive_) {
     qsoIdleFrames_++;
-    // If no text for ~250ms (squelch closed), flush completed message
-    if (qsoIdleFrames_ > 6) {
+    // If no text for ~1.4s (transmission finished), flush completed message
+    if (qsoIdleFrames_ > 35) {
       flushQsoMessage(true);
     }
   }
 
   // Process MultiDemod (LH Pane)
   auto decodes = multiDemod_.takeDecodes();
-  for (size_t i = 0; i < decodes.size(); ++i) {
-    flushChannelMessage(static_cast<int>(i), decodes[i], false);
+  for (auto const& decode : decodes) {
+    flushChannelMessage(decode.channelId, decode, false);
   }
 
   // Check for idle multi channels
   for (int i = 0; i < PskMultiDemod::MAX_CHANNELS; ++i) {
-    if (channels_[i].active) {
+    bool found = false;
+    for (auto const& decode : decodes) {
+      if (decode.channelId == i) {
+        found = true;
+        break;
+      }
+    }
+    if (!found && channels_[i].active) {
       channels_[i].idleFrames++;
-      if (channels_[i].idleFrames > 6) {
+      if (channels_[i].idleFrames > 35) {
         // Complete it
         PskMultiDemod::DecodeResult dummy;
         dummy.channelId = i;

@@ -133,13 +133,11 @@ namespace Rtty
     inptr_ = 0;
     if (pass_ > 0) return 0;
 
-    // Convert output to cmplx* by creating a static buffer
-    static std::vector<cmplx> outbuf;
-    outbuf.resize(flen2_);
+    outbuf_.resize(flen2_);
     for (int i = 0; i < flen2_; ++i) {
-      outbuf[i] = cmplx(output_[i][0], output_[i][1]);
+      outbuf_[i] = cmplx(output_[i][0], output_[i][1]);
     }
-    *out = outbuf.data();
+    *out = outbuf_.data();
     return flen2_;
   }
 }

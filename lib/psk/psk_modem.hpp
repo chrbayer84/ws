@@ -27,6 +27,8 @@ public:
     void setFrequency(double freq);
     void setReverse(bool rev) { reverse_ = rev; }
     void setSquelch(double s) { squelch_ = s; }
+    void setAfc(bool afc) { afc_ = afc; }
+    bool isAfc() const { return afc_; }
 
     void rxInit();
     void txInit();
@@ -66,9 +68,11 @@ private:
     void updateSyncScope();
 
     double frequency_ = 1500.0;
+    double baseFrequency_ = 1500.0;
     double rxSampleRate_;
     double txSampleRate_;
     bool reverse_ = false;
+    bool afc_ = true;
     double squelch_ = 5.0;
 
     double phaseAcc_ = 0.0;
@@ -87,6 +91,7 @@ private:
     int dcdBits_ = 32;
     bool dcd_ = false;
     int acquire_ = 0;
+    int hang_ = 0;
 
     double qualityCos_ = 0.0;
     double qualitySin_ = 0.0;

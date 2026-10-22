@@ -29,7 +29,7 @@ namespace Rtty
   class RttyMultiDemod
   {
   public:
-    static constexpr int MAX_CHANNELS = 30;
+    static constexpr int MAX_CHANNELS = 64;
 
     explicit RttyMultiDemod(double baud = 45.4545, double shift = 170.0,
                             double sampleRate = 12000.0);

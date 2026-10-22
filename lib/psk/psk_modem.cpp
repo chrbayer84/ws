@@ -104,11 +104,14 @@ void PskModem::buildTxShape() {
 void PskModem::setFrequency(double freq) {
     if (std::abs(frequency_ - freq) > 0.01) {
         frequency_ = freq;
+        baseFrequency_ = freq;
         phaseInc_ = TWOPI * frequency_ / rxSampleRate_;
+        freqError_ = 0.0;
     }
 }
 
 void PskModem::rxInit() {
+    frequency_ = baseFrequency_;
     phaseAcc_ = 0.0;
     phaseInc_ = TWOPI * frequency_ / rxSampleRate_;
     prevSymbol_ = cmplx(1.0, 0.0);
@@ -120,6 +123,7 @@ void PskModem::rxInit() {
     dcdShreg_ = 0;
     dcd_ = false;
     acquire_ = dcdBits_ * 2;
+    hang_ = 0;
     qualityCos_ = 0.0;
     qualitySin_ = 0.0;
     quality_ = 0.0;
@@ -187,11 +191,13 @@ void PskModem::rxSymbol(const cmplx& symbol) {
     // In BPSK, bits = 0 (no phase shift) or 2 (phase reversal)
     int bits = (((int)(phase / M_PI_ + 0.5)) & 1) << 1;
 
-    // Vector smoothing quality metric
+    // Vector smoothing quality metric with fast attack (8 symbols), slow decay (40 symbols)
     double cval = std::cos(2.0 * phase);
     double sval = std::sin(2.0 * phase);
-    qualityCos_ = decayavg(qualityCos_, cval, SQLDECAY);
-    qualitySin_ = decayavg(qualitySin_, sval, SQLDECAY);
+    int decayCos = (cval > qualityCos_) ? 8 : 40;
+    int decaySin = (std::abs(sval) < std::abs(qualitySin_)) ? 8 : 40;
+    qualityCos_ = decayavg(qualityCos_, cval, decayCos);
+    qualitySin_ = decayavg(qualitySin_, sval, decaySin);
     quality_ = 100.0 * (qualityCos_ * qualityCos_ + qualitySin_ * qualitySin_);
     snr_ = quality_;
 
@@ -199,12 +205,41 @@ void PskModem::rxSymbol(const cmplx& symbol) {
     dcdShreg_ = (dcdShreg_ << 2) | bits;
     if (dcdShreg_ == 0xAAAAAAAA) {
         dcd_ = true;
+        hang_ = 32;
+        qualityCos_ = 1.0;
+        qualitySin_ = 0.0;
+        quality_ = 100.0;
     } else if (dcdShreg_ == 0x00000000) {
-        dcd_ = false;
+        if (hang_ > 0) hang_--;
+        if (hang_ <= 0) dcd_ = false;
     } else if (quality_ > squelch_) {
         dcd_ = true;
+        hang_ = 16;
     } else {
-        dcd_ = false;
+        if (hang_ > 0) {
+            hang_--;
+            dcd_ = true;
+        } else {
+            dcd_ = false;
+        }
+    }
+
+    // Phase AFC: track carrier within +/- 20 Hz of nominal channel frequency
+    if (afc_ && dcd_) {
+        double idealPhase = (bits == 0) ? 0.0 : M_PI_;
+        double phaseErr = phase - idealPhase;
+        if (phaseErr > M_PI_) phaseErr -= TWOPI;
+        if (phaseErr < -M_PI_) phaseErr += TWOPI;
+
+        if (std::abs(phaseErr) < HALF_PI) {
+            double ferr = (phaseErr / TWOPI) * BAUD;
+            freqError_ = decayavg(freqError_, ferr, 12);
+            double newFreq = frequency_ - freqError_ * 0.15;
+            if (std::abs(newFreq - baseFrequency_) <= 20.0) {
+                frequency_ = newFreq;
+                phaseInc_ = TWOPI * frequency_ / rxSampleRate_;
+            }
+        }
     }
 
     // Varicode bit decode:
@@ -273,13 +308,19 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         isFirstSymbol = false;
     };
 
-    // PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift)
-    // Matches fldigi standard BPSK31 preamble (dcdbits = 32)
+    // 1. Unmodulated carrier lead-in: 16 symbols (~512 ms at 31.25 baud)
+    // Allows transceiver PTT, DAC buffering, and receiver AGC/AFC to settle
+    for (int i = 0; i < 16; i++) {
+        sendSymbol(1);
+    }
+
+    // 2. PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift)
+    // Synchronizes symbol clock recovery and engages receiver DCD
     for (int i = 0; i < 32; i++) {
         sendSymbol(0);
     }
 
-    // Text data with Varicode and "00" inter-character delimiters
+    // 3. Text data with Varicode and "00" inter-character delimiters
     for (unsigned char uc : text) {
         const char* code = Psk::varicode_encode(uc);
         for (int i = 0; code[i]; i++) {
@@ -290,7 +331,7 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         sendSymbol(0);
     }
 
-    // PSK31 postamble: 32 unmodulated carrier symbols (symbol 1 = bit 1 = 0° phase)
+    // 4. PSK31 postamble: 32 unmodulated carrier symbols (symbol 1 = bit 1 = 0° phase)
     // Matches fldigi standard BPSK31 postamble (dcdbits = 32)
     for (int i = 0; i < 31; i++) {
         sendSymbol(1);
@@ -298,8 +339,8 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
     // Last postamble symbol smoothly tapers second half to zero
     sendSymbol(1, true);
 
-    // 50ms silence (2400 samples at 48 kHz) to cleanly drain audio buffer
-    txBuffer_.insert(txBuffer_.end(), 2400, 0);
+    // 5. 250ms silence pad (12,000 samples at 48 kHz) to ensure DAC flushes before PTT releases
+    txBuffer_.insert(txBuffer_.end(), 12000, 0);
 
     return txBuffer_;
 }

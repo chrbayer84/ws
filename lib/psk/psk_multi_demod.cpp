@@ -91,60 +91,29 @@ void PskMultiDemod::rxProcess(const int16_t* samples, int count) {
         if (modem->hasOutput()) {
             std::string newText = modem->takeOutput();
             if (!newText.empty()) {
-                ch.text += newText;
-                ch.hasText = true;
-                ch.idleFrames = 0;
+                DecodeResult result;
+                result.channelId = i;
+                result.frequency = modem->getFrequency();
+                result.text = newText;
+                result.snr = modem->getSNR();
+                result.complete = false;
+
+                #pragma omp critical
+                {
+                    pendingDecodes_.push_back(result);
+                }
             }
-        } else {
-            ch.idleFrames++;
-        }
-
-        double snr = modem->getSNR();
-        bool dcd = modem->isDCD();
-
-        if (dcd) {
-            ch.timeout = 0;
-        } else {
-            ch.timeout++;
-        }
-
-        if (ch.idleFrames > 50 && ch.hasText && ch.text.size() >= 3) {
-            DecodeResult result;
-            result.channelId = i;
-            result.frequency = ch.frequency;
-            result.text = ch.text;
-            result.snr = snr;
-            result.complete = true;
-
-            #pragma omp critical
-            {
-                pendingDecodes_.push_back(result);
-            }
-            ch.text.clear();
-            ch.hasText = false;
-        }
-
-        if (ch.timeout > 200 && ch.hasText && ch.text.size() >= 3) {
-            DecodeResult result;
-            result.channelId = i;
-            result.frequency = ch.frequency;
-            result.text = ch.text;
-            result.snr = snr;
-            result.complete = true;
-
-            #pragma omp critical
-            {
-                pendingDecodes_.push_back(result);
-            }
-            ch.text.clear();
-            ch.hasText = false;
         }
     }
 }
 
 std::vector<PskMultiDemod::DecodeResult> PskMultiDemod::takeDecodes() {
-    std::vector<DecodeResult> result = std::move(pendingDecodes_);
-    pendingDecodes_.clear();
+    std::vector<DecodeResult> result;
+    #pragma omp critical
+    {
+        result = std::move(pendingDecodes_);
+        pendingDecodes_.clear();
+    }
     return result;
 }
 
