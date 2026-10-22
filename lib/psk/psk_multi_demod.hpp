@@ -31,6 +31,7 @@ public:
 
     void setSampleRate(double rate);
     void setFrequencyRange(int low, int high);
+    void setCenterFrequency(double f0);
     void setSquelch(double s);
     void setReverse(bool rev);
 
@@ -50,6 +51,7 @@ private:
     double sampleRate_;
     int lowFreq_;
     int highFreq_;
+    double centerFreq_ {1500.0};
     double squelch_;
     bool reverse_;
 

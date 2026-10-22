@@ -124,9 +124,12 @@ void PskModem::rxInit() {
     dcd_ = false;
     acquire_ = dcdBits_ * 2;
     hang_ = 0;
+    inPwr_ = 0.0;
+    sigPwr_ = 0.0;
     qualityCos_ = 0.0;
     qualitySin_ = 0.0;
     quality_ = 0.0;
+    metric_ = 0.0;
     avgAmp_ = 0.0;
     freqError_ = 0.0;
     snr_ = 0.0;
@@ -144,6 +147,7 @@ int PskModem::rxProcess(const int16_t* samples, int count) {
 
     for (int i = 0; i < count; i++) {
         double sample = samples[i] / 32768.0;
+        inPwr_ = decayavg(inPwr_, sample * sample, SAMPLES_PER_SYMBOL_RX);
 
         cmplx z(sample * std::cos(phaseAcc_), sample * std::sin(phaseAcc_));
         phaseAcc_ += phaseInc_;
@@ -158,6 +162,7 @@ int PskModem::rxProcess(const int16_t* samples, int count) {
             if (idx < 0 || idx >= SYNC_BUF_SIZE) continue;
             double mag = std::abs(z2);
             if (std::isnan(mag) || std::isinf(mag)) continue;
+            sigPwr_ = decayavg(sigPwr_, mag * mag, SYNC_BUF_SIZE * 2);
             syncBuf_[idx] = 0.8 * syncBuf_[idx] + 0.2 * mag;
 
             int symSteps = SYNC_BUF_SIZE / 2;
@@ -191,15 +196,20 @@ void PskModem::rxSymbol(const cmplx& symbol) {
     // In BPSK, bits = 0 (no phase shift) or 2 (phase reversal)
     int bits = (((int)(phase / M_PI_ + 0.5)) & 1) << 1;
 
-    // Vector smoothing quality metric with fast attack (8 symbols), slow decay (40 symbols)
+    // RTTY-style power concentration: ratio of 31Hz filtered carrier to wideband input
+    double const concentration = sigPwr_ / (inPwr_ + 1e-9);
+    double const concScale = clamp((concentration - 0.03) / 0.12, 0.0, 1.0);
+
+    // Symmetric vector smoothing quality metric (same decay in all directions)
     double cval = std::cos(2.0 * phase);
     double sval = std::sin(2.0 * phase);
-    int decayCos = (cval > qualityCos_) ? 8 : 40;
-    int decaySin = (std::abs(sval) < std::abs(qualitySin_)) ? 8 : 40;
-    qualityCos_ = decayavg(qualityCos_, cval, decayCos);
-    qualitySin_ = decayavg(qualitySin_, sval, decaySin);
-    quality_ = 100.0 * (qualityCos_ * qualityCos_ + qualitySin_ * qualitySin_);
-    snr_ = quality_;
+    qualityCos_ = decayavg(qualityCos_, cval, 32);
+    qualitySin_ = decayavg(qualitySin_, sval, 32);
+    double const coherence = std::max(0.0, qualityCos_ * qualityCos_ + qualitySin_ * qualitySin_);
+
+    // Combined metric: requires both phase coherence AND power concentration (like RTTY)
+    metric_ = clamp(100.0 * coherence * concScale, 0.0, 100.0);
+    snr_ = metric_;
 
     // DCD tracking for preamble (0xAAAAAAAA) and carrier postamble (0x00000000)
     dcdShreg_ = (dcdShreg_ << 2) | bits;
@@ -208,11 +218,11 @@ void PskModem::rxSymbol(const cmplx& symbol) {
         hang_ = 32;
         qualityCos_ = 1.0;
         qualitySin_ = 0.0;
-        quality_ = 100.0;
+        metric_ = 100.0;
     } else if (dcdShreg_ == 0x00000000) {
         if (hang_ > 0) hang_--;
         if (hang_ <= 0) dcd_ = false;
-    } else if (quality_ > squelch_) {
+    } else if (metric_ >= squelch_) {
         dcd_ = true;
         hang_ = 16;
     } else {
@@ -254,8 +264,11 @@ void PskModem::rxBit(int bit) {
     shreg_ = (shreg_ << 1) | bit;
     if ((shreg_ & 3) == 0) {
         int c = Psk::varicode_decode(shreg_ >> 2);
-        if (c >= 0 && c < 256 && dcd_) {
-            rxChars_.push_back(static_cast<char>(c));
+        // Only accept printable ASCII (or \r, \n) while squelch is open (like RTTY)
+        if (dcd_ && (metric_ >= squelch_ || squelch_ <= 0.0)) {
+            if ((c >= 32 && c <= 126) || c == '\r' || c == '\n') {
+                rxChars_.push_back(static_cast<char>(c));
+            }
         }
         shreg_ = 0;
     }
@@ -308,14 +321,8 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         isFirstSymbol = false;
     };
 
-    // 1. Unmodulated carrier lead-in: 16 symbols (~512 ms at 31.25 baud)
-    // Allows transceiver PTT, DAC buffering, and receiver AGC/AFC to settle
-    for (int i = 0; i < 16; i++) {
-        sendSymbol(1);
-    }
-
-    // 2. PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift)
-    // Synchronizes symbol clock recovery and engages receiver DCD
+    // PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift)
+    // Synchronizes symbol clock recovery and engages receiver DCD (0xAAAAAAAA)
     for (int i = 0; i < 32; i++) {
         sendSymbol(0);
     }

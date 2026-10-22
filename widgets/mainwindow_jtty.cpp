@@ -480,7 +480,8 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
 
   QVector<Jtty::MessageUpdate> updates = m_pskDecoder.takeUpdates();
 
-  // Process PSK31 decodes (similar to RTTY)
+  bool anyEom {false};
+  // Process PSK31 decodes (FT8-style: completed lines append to bottom and never mutate)
   for (auto const& update : updates) {
     if (update.complete && update.text.trimmed().length() >= 3) {
       QString displayLine = formatJttyDecodeLine(
@@ -490,6 +491,8 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
         QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
         if (!time.isEmpty()) displayLine = time + " " + displayLine;
       }
+
+      // 1. All Decodes Pane (Left Pane)
       QTextCursor cursor = ui->decodedTextBrowser->textCursor();
       cursor.movePosition(QTextCursor::End);
       if (cursor.position() > 0) cursor.insertBlock();
@@ -507,59 +510,22 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
 
       write_all("Rx", formatJttyDecodeLine(update.frequency, update.snr, update.text.trimmed()),
                 jttyLineDateTimeUtc(update.sequenceStart));
+
+      // 2. QSO Pane (Right Pane): only if on the active RX frequency (+/- tolerance)
+      float const effectiveTol = qMax(ftol, 25.0f);
+      if (std::abs(update.frequency - f0) <= effectiveTol) {
+        QTextCursor qsoCursor = ui->decodedTextBrowser2->textCursor();
+        qsoCursor.movePosition(QTextCursor::End);
+        if (qsoCursor.position() > 0) qsoCursor.insertBlock();
+        qsoCursor.insertText(displayLine, format);
+        ui->decodedTextBrowser2->setTextCursor(qsoCursor);
+        ui->decodedTextBrowser2->ensureCursorVisible();
+        anyEom = true;
+      }
+      m_bDecoded = true;
     }
   }
 
-  bool const qsoDisplayOptionsChanged = !m_jttyQsoLines.isEmpty()
-      && (m_jttyQsoRenderedLowerCase != ui->cbLowerCase->isChecked()
-          || m_jttyQsoRenderedIncludeTime != ui->cbIncludeTime->isChecked());
-  bool anyEom {false};
-  bool anyLineChanged {false};
-  for (auto const& update : updates) {
-    auto known = std::find_if(m_jttyQsoLines.begin(), m_jttyQsoLines.end(),
-                              [&update] (JttyQsoLine const& line) {
-                                return line.messageId == update.messageId;
-                              });
-    bool const alreadyPresent = known != m_jttyQsoLines.end();
-    float const effectiveTol = ftol;
-    if (!Jtty::shouldApplyToQsoHistory(
-            alreadyPresent, update.frequency, f0, effectiveTol)) {
-      continue;
-    }
-    if (update.complete) anyEom = true;
-
-    QString delta;
-    if (alreadyPresent) {
-        auto const change = Jtty::compareMessages(known->text, update.text);
-        bool const frequencyChanged = known->frequency != update.frequency;
-        if (!change.messageChanged && !frequencyChanged) continue;
-        if (change.messageChanged) {
-            if (change.extendsMessage) {
-                delta = change.appendedText;
-            } else {
-                delta = update.text;
-            }
-        }
-        known->frequency = update.frequency;
-        known->text = update.text;
-    } else {
-        delta = update.text;
-        auto const allLine = std::find_if (
-          m_jttyAllFreqLines.cbegin (), m_jttyAllFreqLines.cend (),
-          [&update] (JttyDecodeLine const& line) {
-            return line.messageId == update.messageId;
-          });
-        QDateTime const messageStartUtc = allLine != m_jttyAllFreqLines.cend ()
-          ? allLine->messageStartUtc
-          : jttyLineDisplayDateTimeUtc (update.sequenceStart);
-        m_jttyQsoLines.append({update.messageId, update.frequency, update.text,
-                               update.sequenceStart, messageStartUtc, update.snr});
-    }
-    anyLineChanged = true;
-    m_bDecoded = true;
-  }
-
-  if (anyLineChanged || qsoDisplayOptionsChanged) renderJttyQsoLines ();
   return anyEom;
 }
 

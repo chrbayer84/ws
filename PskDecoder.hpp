@@ -1,7 +1,6 @@
 #ifndef PSK_DECODER_HPP
 #define PSK_DECODER_HPP
 
-#include "lib/psk/psk_modem.hpp"
 #include "lib/psk/psk_multi_demod.hpp"
 #include "widgets/JttyMessages.hpp"
 #include <QVector>
@@ -13,6 +12,8 @@ namespace Psk {
 class Decoder
 {
 public:
+  static constexpr qint64 idleSamples = 18000; // 1.5 s at 12 kHz
+
   Decoder();
   ~Decoder();
 
@@ -37,16 +38,7 @@ private:
   qint64 gridOrigin_ {0};
   qint64 nextRequiredSample_ {0};
 
-  PskModem qsoModem_;
   PskMultiDemod multiDemod_;
-
-  // State tracking for the QSO modem
-  double qsoCenterFrequency_ {0.0};
-  qint64 qsoMessageId_ {0};
-  QString qsoText_;
-  double qsoStartSeconds_ {0.0};
-  bool qsoActive_ {false};
-  int qsoIdleFrames_ {0};
 
   // State tracking for multi channels
   struct ChannelState {
@@ -56,13 +48,14 @@ private:
     double frequency {0.0};
     bool active {false};
     int idleFrames {0};
+    qint64 lastTextSample {0};
+    double snr {0.0};
   };
   std::vector<ChannelState> channels_;
 
   QVector<Jtty::MessageUpdate> pendingUpdates_;
 
   qint64 generateMessageId(int channelId);
-  void flushQsoMessage(bool complete);
   void flushChannelMessage(int channelId, const PskMultiDemod::DecodeResult& decode, bool complete);
 };
 

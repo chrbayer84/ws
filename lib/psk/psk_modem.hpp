@@ -43,6 +43,7 @@ public:
     double getFrequency() const { return frequency_; }
     double getAFC() const { return freqError_; }
     double getSNR() const { return snr_; }
+    double metric() const { return metric_; }
     bool isDCD() const { return dcd_; }
 
 private:
@@ -93,9 +94,12 @@ private:
     int acquire_ = 0;
     int hang_ = 0;
 
+    double inPwr_ = 0.0;
+    double sigPwr_ = 0.0;
     double qualityCos_ = 0.0;
     double qualitySin_ = 0.0;
     double quality_ = 0.0;
+    double metric_ = 0.0;
     double avgAmp_ = 0.0;
     double freqError_ = 0.0;
     double snr_ = 0.0;
