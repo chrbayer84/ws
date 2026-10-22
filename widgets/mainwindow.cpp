@@ -1019,6 +1019,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   ui->actionQ65->setActionGroup(modeGroup);
   ui->actionJTTY->setActionGroup(modeGroup);
   if (ui->actionRTTY) ui->actionRTTY->setActionGroup(modeGroup);
+  ui->actionPSK31->setActionGroup(modeGroup);
   ui->actionFreqCal->setActionGroup(modeGroup);
 
   QActionGroup* saveGroup = new QActionGroup(this);
