@@ -1,5 +1,6 @@
 #include "RttyDecoder.hpp"
 #include <QDateTime>
+#include <cmath>
 
 namespace Rtty {
 
@@ -27,12 +28,8 @@ void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int
   qsoActive_ = false;
   qsoIdleFrames_ = 0;
 
-  for (auto& ch : channels_) {
-    ch.messageId = 0;
-    ch.text.clear();
-    ch.active = false;
-    ch.idleFrames = 0;
-  }
+  for (auto& ch : channels_) ch = ChannelState {};
+  pendingUpdates_.clear();
 }
 
 int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
@@ -44,83 +41,43 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   (void)tolerance;
   if (!samples || count <= 0) return 0;
 
-  // QSO Modem (RH Pane): Only decode at the RX frequency +/- tolerance
-  // No bandpass filter on the modem itself - it processes the full signal
-  // but we set its center frequency for proper demodulation
-  if (std::abs(centerFrequency - qsoCenterFrequency_) > 1.0) {
-    qsoCenterFrequency_ = centerFrequency;
-    qsoModem_.setFrequency(centerFrequency);
-  }
-  qsoModem_.setSquelch(5.0); 
-  qsoModem_.rxProcess(samples, count);
+  (void)centerFrequency;
+  // N6NU: no separate QSO modem at the Rx frequency. Its squelch compared the
+  // tones with the power of the whole band and closed in a busy band, and it put
+  // every message near Rx into the QSO pane twice. WS fills the QSO pane from
+  // these updates by frequency (Jtty::shouldApplyToQsoHistory), as for JTTY.
 
-  // Multi-Demod (LH Pane): Scan the FULL passband (lowFrequency to highFrequency)
-  // to show all decodes across the waterfall
+  // Multi-Demod: search the full passband (lowFrequency to highFrequency)
   multiDemod_.setBandpass(lowFrequency, highFrequency);
-  multiDemod_.setSquelch(5.0);
+  multiDemod_.setSquelch(5.0);   // tone-pair detection threshold, dB over the noise per bin
   multiDemod_.rxProcess(samples, count);
 
-  double currentSeconds = static_cast<double>(firstSample) / 12000.0;
-
-  // Process QSO Modem (RH Pane)
-  if (qsoModem_.hasDecodedText()) {
-    std::string newText = qsoModem_.takeDecodedText();
-    if (!newText.empty()) {
-      if (!qsoActive_) {
-        qsoActive_ = true;
-        qsoMessageId_ = generateMessageId(-1);
-        qsoStartSeconds_ = currentSeconds;
-        qsoText_.clear();
-      }
-      qsoText_ += QString::fromStdString(newText);
-      qsoIdleFrames_ = 0;
-      
-      Jtty::MessageUpdate update;
-      update.messageId = qsoMessageId_;
-      update.frequency = centerFrequency;
-      update.text = qsoText_;
-      update.sequenceStart = qsoStartSeconds_;
-      update.complete = false;
-      update.snr = static_cast<int>(qsoModem_.lastSnr());
-      pendingUpdates_.push_back(update);
-    }
-  } else if (qsoActive_) {
-    qsoIdleFrames_++;
-    // If no text for ~1.0s (transmission finished), flush completed message
-    if (qsoIdleFrames_ > 25) {
-      flushQsoMessage(true);
-    }
-  }
-
-  // Process MultiDemod (LH Pane)
+  // N6NU: a message ends after idleSamples without new text, measured in samples.
+  // Counting process() calls instead made it depend on the block size: with
+  // WS's small blocks every gap between two characters ended the message.
+  qint64 const now = firstSample + count;
   auto decodes = multiDemod_.takeDecodes();
   for (auto const& decode : decodes) {
+    auto& ch = channels_[decode.channelId];
+    int const generation = multiDemod_.generation(decode.channelId);
+    if (ch.active && ch.generation != generation) {
+      flushChannelMessage(decode.channelId, decode, true);   // the channel now follows another signal
+    }
+    ch.generation = generation;
+    ch.lastTextSample = now;
     flushChannelMessage(decode.channelId, decode, false);
   }
 
-  // Check for idle multi channels
   for (int i = 0; i < RttyMultiDemod::MAX_CHANNELS; ++i) {
-    bool found = false;
-    for (auto const& decode : decodes) {
-      if (decode.channelId == i) {
-        found = true;
-        break;
-      }
-    }
-    if (!found && channels_[i].active) {
-      channels_[i].idleFrames++;
-      if (channels_[i].idleFrames > 25) {
-        // Complete it
-        ChannelDecode dummy;
-        dummy.channelId = i;
-        dummy.frequency = channels_[i].frequency;
-        dummy.snr = 0;
-        flushChannelMessage(i, dummy, true);
-      }
+    if (channels_[i].active && now - channels_[i].lastTextSample > idleSamples) {
+      ChannelDecode dummy;
+      dummy.channelId = i;
+      dummy.frequency = channels_[i].frequency;
+      flushChannelMessage(i, dummy, true);
     }
   }
 
-  nextRequiredSample_ = firstSample + count;
+  nextRequiredSample_ = now;
   return count; // Number of samples consumed
 }
 
@@ -161,21 +118,22 @@ void Decoder::flushChannelMessage(int channelId, ChannelDecode const& decode, bo
   if (!complete) {
     ch.text += QString::fromStdString(decode.text);
     ch.idleFrames = 0;
+    ch.snr = decode.snr;      // the completing call carries no SNR of its own
   }
 
   if (ch.active) {
     QString const cleanText = ch.text.trimmed();
-    if (!cleanText.isEmpty() && (!complete || cleanText.length() >= 3)) {
+    if (cleanText.length() >= 3) {   // N6NU: one or two characters are mostly noise, shown or not
       Jtty::MessageUpdate update;
       update.messageId = ch.messageId;
       update.frequency = static_cast<float>(ch.frequency);
       update.text = cleanText;
       update.sequenceStart = ch.startSeconds;
       update.complete = complete;
-      update.snr = static_cast<int>(decode.snr);
+      update.snr = static_cast<int>(std::lround(ch.snr));
       pendingUpdates_.push_back(update);
     }
-    
+
     if (complete) {
       ch.active = false;
       ch.text.clear();

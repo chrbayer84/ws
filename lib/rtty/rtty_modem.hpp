@@ -63,6 +63,10 @@ namespace Rtty
     void setSquelch(double squelch) { squelch_ = squelch; }
     double squelch() const { return squelch_; }
 
+    // N6NU: drop characters while the mark/space contrast is below gate (0 = off).
+    // Unlike the squelch metric it does not depend on the power of the whole band.
+    void setContrastGate(double gate) { contrastGate_ = gate; }
+
     void rxInit();
     void txInit();
 
@@ -112,6 +116,7 @@ namespace Rtty
     double metric_ {0.0};
     double snrDb_ {0.0};
     double dcdContrast_ {0.0};
+    double contrastGate_ {0.0};
     double inPwr_ {1e-9};
     double fskPwr_ {0.0};
 
