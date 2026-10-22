@@ -244,7 +244,6 @@ void MainWindow::renderJttyQsoLines()
   QTextCharFormat format;
   format.setFont (ui->decodedTextBrowser2->contentFont ());
   m_jttyQsoGroupStart = cursor.block ();
-  QStringList renderedLines;
   for (auto const& line : m_jttyQsoLines) {
     QString display = formatJttyDecodeLine (
       line.frequency, line.snr, Jtty::wrapMessage (line.text));
@@ -253,14 +252,22 @@ void MainWindow::renderJttyQsoLines()
       QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
       if (!time.isEmpty ()) display = time + " " + display;
     }
-    renderedLines.append (display);
+    
+    // CQ highlighting for QSO pane
+    bool isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ") || line.text.contains(" QRZ ");
+    QTextCharFormat lineFormat = format;
+    if (isCQ) {
+      lineFormat.setBackground(QBrush(QColor(0, 180, 0, 180)));  // green highlight
+    }
+    
+    if (cursor.position() > 0) cursor.insertBlock();
+    cursor.insertText(display, lineFormat);
   }
-  cursor.insertText (renderedLines.join (QChar {'\n'}), format);
-  m_jttyQsoGroupEnd = cursor.block ();
-  m_jttyQsoGroupEndPosition = cursor.position ();
-  ui->decodedTextBrowser2->setTextCursor (cursor);
-  m_jttyQsoRenderedLowerCase = ui->cbLowerCase->isChecked ();
-  m_jttyQsoRenderedIncludeTime = ui->cbIncludeTime->isChecked ();
+  m_jttyQsoGroupEnd = cursor.block();
+  m_jttyQsoGroupEndPosition = cursor.position();
+  ui->decodedTextBrowser2->setTextCursor(cursor);
+  m_jttyQsoRenderedLowerCase = ui->cbLowerCase->isChecked();
+  m_jttyQsoRenderedIncludeTime = ui->cbIncludeTime->isChecked();
 }
 
 
@@ -329,8 +336,14 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
       QTextCursor cursor = ui->decodedTextBrowser->textCursor();
       cursor.movePosition(QTextCursor::End);
       if (cursor.position() > 0) cursor.insertBlock();
+      
+      // CQ highlighting (green background) for conversational modes
+      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ");
       QTextCharFormat format;
       format.setFont(ui->decodedTextBrowser->contentFont());
+      if (isCQ) {
+        format.setBackground(QBrush(QColor(0, 180, 0, 180)));  // green highlight
+      }
       cursor.insertText(displayLine, format);
       ui->decodedTextBrowser->setTextCursor(cursor);
       ui->decodedTextBrowser->ensureCursorVisible();
