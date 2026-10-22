@@ -208,7 +208,7 @@ namespace Rtty
       if (--counter_ <= 0) {
         if (isMark()) {
           // If we have a very low metric score, consider it garbage and drop it
-          if (metric_ >= squelch_ || squelch_ <= 0.0) {
+          if ((metric_ >= squelch_ || squelch_ <= 0.0) && dcdContrast_ >= contrastGate_) {
             char c = Baudot::decode(rxData_, rxShift_, uos_);
             if (c != '\0') {
               // Suppress duplicate CR or LF sequences
