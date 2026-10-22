@@ -3068,7 +3068,7 @@ void MainWindow::fastSink(qint64 frames)
 
   if(isConversationalMode()) {
     m_k0 = k;
-    if (m_mode == "RTTY") rtty_decode(k); else jtty_decode(k);
+    if (m_mode == "RTTY") rtty_decode(k); else if (m_mode == "PSK31") psk_decode(k); else jtty_decode(k);
     if(dec_data.params.kin - k < 10240) fast_decode_done();
     return;
   }
@@ -17390,6 +17390,7 @@ void MainWindow::set_mode (QString const& mode)
     else if ("Q65" == mode) on_actionQ65_triggered ();
     else if ("JTTY" == mode) on_actionJTTY_triggered ();
     else if ("RTTY" == mode) on_actionRTTY_triggered ();
+    else if ("PSK31" == mode) on_actionPSK31_triggered ();
     else if ("FreqCal" == mode) on_actionFreqCal_triggered ();
     else if ("MSK144" == mode) on_actionMSK144_triggered ();
     else if ("WSPR" == mode) on_actionWSPR_triggered ();

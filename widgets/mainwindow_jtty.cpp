@@ -414,6 +414,48 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   return anyEom;
 }
 
+bool MainWindow::psk_decode(int k, int istart0, int istop)
+{
+  (void)istop;
+  auto jttyLineDateTimeUtc = [this, k] (float tsync) -> QDateTime {
+    if (m_diskData && m_UTCdiskDateTime.isValid()) {
+      return m_UTCdiskDateTime.addMSecs(qRound64(1000.0 * tsync)).toUTC();
+    }
+    double const elapsed = qMax(0.0, double(k) / 12000.0 - double(tsync));
+    return QDateTime::currentDateTimeUtc().addMSecs(-qRound64(1000.0 * elapsed));
+  };
+  (void)jttyLineDateTimeUtc;
+
+  bool const newAllFreqsSession = (k <= m_jttyLastAllFreqsK);
+  m_jttyLastAllFreqsK = k;
+  if (newAllFreqsSession) {
+      flushJttyDecodeLines();
+      m_jttyAllFreqsGroupStart = QTextBlock();
+      m_jttyQsoGroupStart = QTextBlock();
+      m_jttyQsoGroupEnd = QTextBlock();
+      m_jttyQsoGroupEndPosition = -1;
+      m_jttyQsoLines.clear();
+      m_jttyAllFreqLines.clear();
+      m_bDecoded = false;
+      m_jttyLastSavedWavK0 = -1;
+      
+      // Reset PSK decoder session
+  }
+  (void)ui->RxFreqSpinBox_2->value();
+  (void)ui->sbFtol_2->value();
+  (void)m_wideGraph->nStartFreq();
+  (void)m_wideGraph->Fmax();
+
+  if (istart0 >= 0) {
+    // PSK decoder would be initialized and process here
+  } else {
+    // Incremental processing
+  }
+   
+  // Placeholder for now - will integrate PskDecoder class later
+  return false;
+}
+
 bool MainWindow::jtty_decode(int k, int istart0, int istop)
 {
   auto jttyLineDateTimeUtc = [this, k] (float tsync) -> QDateTime {
@@ -583,7 +625,7 @@ void MainWindow::jtty_tx(QString message)
 qint64 MainWindow::submitJttyText(QString message)
 {
   qint64 const requestId = ++m_jttyTxRequestId;
-  if (m_mode == "RTTY") { execute_rtty_tx(requestId, message, true); } else { execute_jtty_tx(requestId, message); }
+  if (m_mode == "RTTY") { execute_rtty_tx(requestId, message, true); } else if (m_mode == "PSK31") { execute_psk_tx(requestId, message, true); } else { execute_jtty_tx(requestId, message); }
   return requestId;
 }
 
@@ -598,6 +640,8 @@ void MainWindow::submitJttyDraft(QString message)
   m_jttyDraftAcceptanceTracker.trackSubmission (requestId);
   if (m_mode == "RTTY") {
     execute_rtty_tx (requestId, message, true);
+  } else if (m_mode == "PSK31") {
+    execute_psk_tx (requestId, message, true);
   } else {
     execute_jtty_tx (requestId, message);
   }
@@ -677,6 +721,97 @@ void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal
   bool enqueued {false};
   TxAudioQueueProgress enqueueProgress;
   
+  if (useTciAudio) {
+    QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
+                     samples.size () * int (sizeof (qint16)));
+    qint64 const enqueueId = ++m_jttyTciEnqueueId;
+    m_pendingJttyTciMessages.append(PendingJttyTciMessage {
+      m_jttyTxQueueEpoch,
+      enqueueId,
+      requestId,
+      samples.size (),
+      message,
+      newSession
+    });
+    m_jttyTxActive = true;
+    Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
+                                                 enqueueId);
+    enqueued = true;
+  } else {
+    auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
+    enqueued = result.accepted;
+    enqueueProgress = result.progress;
+  }
+
+  if (!enqueued) {
+    if (!useTciAudio) Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    if (newSession) advanceJttyTxQueueEpoch();
+    return;
+  }
+
+  completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
+}
+
+void MainWindow::execute_psk_tx(qint64 requestId, QString message, bool isFinal)
+{
+  if (m_mode != "PSK31") {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
+    return;
+  }
+
+  if (ui->cbLowerCase->isChecked()) message = message.toLower();
+
+  if (isFinal && !message.isEmpty()) {
+    message += "\r\n";
+  }
+
+  float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
+
+  if (!m_pskTxModem) {
+    m_pskTxModem = std::make_unique<Psk::PskModem>();
+  }
+
+  bool const newSession = !m_jttyTxActive;
+  if (newSession) {
+    advanceJttyTxQueueEpoch();
+    m_jttyTxUsesTciAudio = m_tci_audio;
+    m_pskTxModem->txInit();
+  }
+  bool const useTciAudio = m_jttyTxUsesTciAudio;
+
+  if (newSession) {
+    if (useTciAudio) {
+      Q_EMIT m_config.transceiver_clear_jtty_pcm(m_jttyTxQueueEpoch);
+    } else {
+      m_jttyTxQueue->clear(m_jttyTxQueueEpoch);
+    }
+  }
+
+  std::vector<int16_t> wave = m_pskTxModem->modulateText(message.toStdString(), f0);
+  if (isFinal) {
+    m_pskTxModem->modulatePostamble(f0);
+  }
+
+  QVector<qint16> samples;
+  samples.reserve(wave.size());
+  for (int16_t val : wave) {
+    samples.append(val);
+  }
+
+  if (samples.isEmpty()) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
+    return;
+  }
+
+  if (samples.size() > TxAudioQueue::defaultCapacity()) {
+    LOG_WARN("PSK31 transmit FIFO capacity precheck failed; rejecting PCM enqueue");
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    return;
+  }
+
+  bool enqueued {false};
+  TxAudioQueueProgress enqueueProgress;
+
   if (useTciAudio) {
     QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
                      samples.size () * int (sizeof (qint16)));
@@ -1112,7 +1247,7 @@ void MainWindow::jtty_again()
   ui->DecodeButton->setChecked (true);
   qApp->processEvents();                                //Update the DecodeButton highlight
   replayJttyFrames (dec_data.params.kin, [this] (int k) {
-    if (m_mode == "RTTY") rtty_decode(k); else jtty_decode(k);
+    if (m_mode == "RTTY") rtty_decode(k); else if (m_mode == "PSK31") psk_decode(k); else jtty_decode(k);
     return false;
   });
   flushJttyDecodeLines();
@@ -1143,7 +1278,7 @@ void MainWindow::jttyDecodeAgainAt(float secondsAgo)
   ui->DecodeButton->setChecked (true);
   qApp->processEvents();                                //Update the DecodeButton highlight
   replayJttyFrames (frames, [this, istart0, istop] (int k) {
-    bool const eom = (m_mode == "RTTY") ? rtty_decode(k, istart0, istop) : jtty_decode(k, istart0, istop);
+    bool const eom = (m_mode == "RTTY") ? rtty_decode(k, istart0, istop) : (m_mode == "PSK31" ? psk_decode(k, istart0, istop) : jtty_decode(k, istart0, istop));
     return eom || k >= istop;
   });
   flushJttyDecodeLines();
@@ -1674,6 +1809,49 @@ void MainWindow::on_actionJTTY_triggered()
   statusChanged();
 }
 
+void MainWindow::on_actionPSK31_triggered()
+{
+  if (m_auto) auto_tx_mode (false);
+  on_stopButton_clicked();
+  m_mode = "PSK31";
+  ui->actionPSK31->setChecked(true);
+  switch_mode (Modes::PSK31);
+  WSPR_config(false);
+  VHF_features_enabled(false);
+  m_wideGraph->setMode(m_mode);
+  m_fastGraph->hide();
+  m_wideGraph->show();
+  ui->cbAutoSeq->setChecked(false);
+  m_bFastMode=false;
+  m_bFast9=false;
+  m_nsps=6912;
+  m_FFTSize = m_nsps / 2;
+  if (m_tci_audio) Q_EMIT m_config.transceiver_blocksize (m_FFTSize);
+  else Q_EMIT FFTSize (m_FFTSize);
+  m_TRperiod=180;
+  m_hsymStop=620;
+  m_wideGraph->setPeriod(m_TRperiod,m_nsps);
+  if (!m_tci_audio) {
+    m_modulator->setTRPeriod(m_TRperiod);
+    m_detector->setTRPeriod(m_TRperiod);
+  }
+  ui->TxFreqSpinBox_2->setValue(1500);
+  ui->RxFreqSpinBox_2->setValue(1500);
+  ui->sbFtol_2->values ({2, 5, 10, 20, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500});
+  m_wideGraph->setRxFreq(ui->RxFreqSpinBox_2->value());
+  m_wideGraph->setTol(ui->sbFtol_2->value());
+  updateJttyDecodeHeadings();
+  ui->lh_decodes_title_label->setText(tr ("All Decodes"));
+  ui->rh_decodes_title_label->setText(tr ("QSO Frequency"));
+  displayWidgets(nWidgets("11111100010011100001000000010000000000"));
+  ui->actionMediumDecode->setChecked(true);
+  ui->actionQuickDecode->setEnabled(false);
+  ui->actionDeepestDecode->setEnabled(false);
+  setup_status_bar (false);
+  monitor(true);
+  statusChanged();
+}
+
 void MainWindow::set_mode_from_command_line(const QString& mode, bool lock_mode)
 {
     QString m = mode.toLower();
@@ -1685,6 +1863,8 @@ void MainWindow::set_mode_from_command_line(const QString& mode, bool lock_mode)
         on_actionJTTY_triggered();
     } else if (m == "rtty") {
         on_actionRTTY_triggered();
+    } else if (m == "psk31") {
+        on_actionPSK31_triggered();
     } else {
         LOG_INFO("Invalid or unsupported mode specified via command line: " << mode);
     }

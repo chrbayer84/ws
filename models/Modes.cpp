@@ -10,7 +10,7 @@
 
 namespace
 {
-  // human readable strings for each Mode enumeration value
+// human readable strings for each Mode enumeration value
   char const * const mode_names[] =
   {
     "All",
@@ -28,7 +28,8 @@ namespace
     "FST4W",
     "Q65",
     "JTTY",
-    "RTTY"
+    "RTTY",
+    "PSK31"
   };
   std::size_t constexpr mode_names_size = sizeof (mode_names) / sizeof (mode_names[0]);
 }

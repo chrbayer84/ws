@@ -54,6 +54,7 @@
 #include "Audio/TxRequest.hpp"
 #include "Modulator/JttyTxStream.hpp"
 #include "lib/rtty/rtty_modem.hpp"
+#include "lib/psk/psk_modem.hpp"
 #include "widgets/JttyDraftAcceptanceTracker.hpp"
 #include "widgets/JttyN1mmOutput.hpp"
 #include "widgets/JttyTransmitQueue.hpp"
@@ -1193,6 +1194,7 @@ private:
   void finishJttyDecodeUi();
   Q_SLOT void on_actionJTTY_triggered();
   Q_SLOT void on_actionRTTY_triggered();
+  Q_SLOT void on_actionPSK31_triggered();
   Q_SLOT void on_cbIncludeTime_toggled(bool b);
   Q_SLOT void on_comboBoxJttyStyle_currentIndexChanged(int index);
   Q_SLOT void on_RxFreqSpinBox_2_valueChanged(int n);
@@ -1228,8 +1230,10 @@ private:
   QString jttyRejectReasonText(JttyTxRejectReason reason) const;
 #endif
   void execute_rtty_tx(qint64 requestId, QString message, bool isFinal = true);
+  void execute_psk_tx(qint64 requestId, QString message, bool isFinal = true);
   bool rtty_decode(int k, int istart0 = -1, int istop = -1);
-  bool isConversationalMode() const { return m_mode == "JTTY" || m_mode == "RTTY"; }
+  bool psk_decode(int k, int istart0 = -1, int istop = -1);
+  bool isConversationalMode() const { return m_mode == "JTTY" || m_mode == "RTTY" || m_mode == "PSK31"; }
   void execute_jtty_tx(qint64 requestId, QString message);
   void execute_jtty_tones(qint64 requestId, QString const& message,
                           int const itone[], int nsym);
@@ -1275,6 +1279,7 @@ private:
   bool m_jttyTxActive {false};
   bool m_jttyTxUsesTciAudio {false};
   std::unique_ptr<Rtty::RttyModem> m_rttyTxModem;
+  std::unique_ptr<Psk::PskModem> m_pskTxModem;
   Rtty::Decoder m_rttyDecoder;
   TxAudioQueueEpoch m_jttyTxQueueEpoch {};
   TxAudioQueueProgress m_jttyTxQueueProgress {};

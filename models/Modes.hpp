@@ -36,7 +36,7 @@ public:
   // an array of human readable strings in the implementation
   // (Modes.cpp) must be maintained in parallel.
   //
-  enum Mode
+enum Mode
   {
     ALL,                        // matches with all modes
     JT65,
@@ -54,6 +54,7 @@ public:
     Q65,
     RTTY,
     JTTY,
+    PSK31,
     MODES_END_SENTINAL_AND_COUNT // this must be last
   };
   Q_ENUM (Mode)

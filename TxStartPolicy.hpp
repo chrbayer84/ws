@@ -7,7 +7,7 @@ constexpr double TxStartLatestPeriodFraction = 0.75;
 
 inline bool is_conversational_mode (QString const& mode)
 {
-  return mode == "JTTY" || mode == "RTTY";
+  return mode == "JTTY" || mode == "RTTY" || mode == "PSK31";
 }
 
 inline bool requires_standard_tx_message (QString const& mode)
