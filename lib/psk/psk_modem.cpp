@@ -20,6 +20,7 @@ static inline double clamp(double v, double lo, double hi) {
     return std::max(lo, std::min(hi, v));
 }
 
+// 65-tap raised-cosine FIR (same as fldigi gmfir1c)
 static std::vector<double> raisedcosfilt(int len) {
     std::vector<double> c(len + 1);
     for (int i = 0; i <= len; i++) {
@@ -28,59 +29,53 @@ static std::vector<double> raisedcosfilt(int len) {
     return c;
 }
 
-static std::vector<double> pskcore_filter(int len) {
-    std::vector<double> c(len + 1);
-    const double pi = M_PI_;
-    for (int i = 0; i <= len; i++) {
-        double x = (i - len/2.0) / (len/2.0);
-        if (x == 0.0) {
-            c[i] = 1.0;
-        } else if (std::abs(x) == 0.5) {
-            c[i] = 0.5;
-        } else if (std::abs(x) == 1.0) {
-            c[i] = 0.0;
-        } else {
-            double num = std::sin(pi * x) * std::cos(pi * x / 2.0);
-            double den = pi * x * (1.0 - x * x);
-            c[i] = num / den;
-        }
-    }
-    return c;
-}
+// G3PLX 4-bit matched filter coefficients from fldigi (gmfir2c, unity gain)
+static const double gmfir2c[FIRLEN + 1] = {
+    0.000625000, 0.000820912, 0.001374651, 0.002188141, 0.003110600,
+    0.003956273, 0.004526787, 0.004635947, 0.004134515, 0.002932456,
+    0.001016352, -0.001539947, -0.004572751, -0.007834665, -0.011009254,
+    -0.013733305, -0.015625000, -0.016315775, -0.015483216, -0.012882186,
+    -0.008371423, -0.001933193, 0.006315933, 0.016124399, 0.027115485,
+    0.038807198, 0.050640928, 0.062016866, 0.072333574, 0.081028710,
+    0.087617820, 0.091728168, 0.093125000, 0.091728168, 0.087617820,
+    0.081028710, 0.072333574, 0.062016866, 0.050640928, 0.038807198,
+    0.027115485, 0.016124399, 0.006315933, -0.001933193, -0.008371423,
+    -0.012882186, -0.015483216, -0.016315775, -0.015625000, -0.013733305,
+    -0.011009254, -0.007834665, -0.004572751, -0.001539947, 0.001016352,
+    0.002932456, 0.004134515, 0.004635947, 0.004526787, 0.003956273,
+    0.003110600, 0.002188141, 0.001374651, 0.000820912, 0.000625000
+};
 
 PskModem::FirFilter::FirFilter(const std::vector<double>& c, int dec)
-    : coeffs(c), decimation(dec), phase(0) {
-    state_real.resize(coeffs.size() - 1, 0.0);
-    state_imag.resize(coeffs.size() - 1, 0.0);
+    : coeffs(c), decimation(dec), phase(0), buf_idx(0) {
+    buf_real.resize(coeffs.size(), 0.0);
+    buf_imag.resize(coeffs.size(), 0.0);
 }
 
 void PskModem::FirFilter::reset() {
-    std::fill(state_real.begin(), state_real.end(), 0.0);
-    std::fill(state_imag.begin(), state_imag.end(), 0.0);
+    std::fill(buf_real.begin(), buf_real.end(), 0.0);
+    std::fill(buf_imag.begin(), buf_imag.end(), 0.0);
     phase = 0;
+    buf_idx = 0;
 }
 
 bool PskModem::FirFilter::process(const cmplx& in, cmplx& out) {
-    // Shift in new sample
-    state_real.insert(state_real.begin(), in.real());
-    state_imag.insert(state_imag.begin(), in.imag());
-    if ((int)state_real.size() > (int)coeffs.size()) {
-        state_real.pop_back();
-        state_imag.pop_back();
-    }
-
-    double real_sum = 0.0, imag_sum = 0.0;
-    for (size_t i = 0; i < coeffs.size(); i++) {
-        double real_val = (i < state_real.size()) ? state_real[i] : 0.0;
-        double imag_val = (i < state_imag.size()) ? state_imag[i] : 0.0;
-        real_sum += coeffs[i] * real_val;
-        imag_sum += coeffs[i] * imag_val;
-    }
+    buf_real[buf_idx] = in.real();
+    buf_imag[buf_idx] = in.imag();
+    buf_idx = (buf_idx + 1) % coeffs.size();
 
     phase = (phase + 1) % decimation;
-
     if (phase == 0) {
-        out = cmplx(real_sum, imag_sum);
+        double rsum = 0.0, isum = 0.0;
+        int k = buf_idx;
+        int const n = static_cast<int>(coeffs.size());
+        for (int i = 0; i < n; ++i) {
+            --k;
+            if (k < 0) k += n;
+            rsum += coeffs[i] * buf_real[k];
+            isum += coeffs[i] * buf_imag[k];
+        }
+        out = cmplx(rsum, isum);
         return true;
     }
     return false;
@@ -89,7 +84,7 @@ bool PskModem::FirFilter::process(const cmplx& in, cmplx& out) {
 PskModem::PskModem(double rxSampleRate, double txSampleRate)
     : rxSampleRate_(rxSampleRate), txSampleRate_(txSampleRate) {
     auto fir1c = raisedcosfilt(FIRLEN);
-    auto fir2c = pskcore_filter(FIRLEN);
+    std::vector<double> fir2c(gmfir2c, gmfir2c + FIRLEN + 1);
     fir1_ = FirFilter(fir1c, SAMPLES_PER_SYMBOL_RX / SYNC_BUF_SIZE);
     fir2_ = FirFilter(fir2c, 1);
     buildTxShape();
@@ -125,6 +120,8 @@ void PskModem::rxInit() {
     dcdShreg_ = 0;
     dcd_ = false;
     acquire_ = dcdBits_ * 2;
+    qualityCos_ = 0.0;
+    qualitySin_ = 0.0;
     quality_ = 0.0;
     avgAmp_ = 0.0;
     freqError_ = 0.0;
@@ -155,9 +152,9 @@ int PskModem::rxProcess(const int16_t* samples, int count) {
 
             int idx = static_cast<int>(bitClk_);
             if (idx < 0 || idx >= SYNC_BUF_SIZE) continue;
-            double sum = std::abs(z2);
-            if (std::isnan(sum) || std::isinf(sum)) continue;
-            syncBuf_[idx] = 0.8 * syncBuf_[idx] + 0.2 * sum;
+            double mag = std::abs(z2);
+            if (std::isnan(mag) || std::isinf(mag)) continue;
+            syncBuf_[idx] = 0.8 * syncBuf_[idx] + 0.2 * mag;
 
             int symSteps = SYNC_BUF_SIZE / 2;
             double asym = 0.0, asum = 0.0;
@@ -187,53 +184,42 @@ void PskModem::rxSymbol(const cmplx& symbol) {
 
     if (phase < 0) phase += TWOPI;
 
-    int bit = (phase > HALF_PI && phase < 3.0 * HALF_PI) ? 0 : 1;
-    if (reverse_) bit = 1 - bit;
+    // In BPSK, bits = 0 (no phase shift) or 2 (phase reversal)
+    int bits = (((int)(phase / M_PI_ + 0.5)) & 1) << 1;
 
-    double sigAmp = std::norm(symbol);
-    avgAmp_ = decayavg(avgAmp_, sigAmp, SQLDECAY);
-
-    double softAmp = 1.0;
-    if (sigAmp > 0 && avgAmp_ > 0) {
-        softAmp = clamp(std::sqrt(avgAmp_ / sigAmp), 1.0, 1e6);
-    }
-
-    double alpha = phase / M_PI_;
-    if (alpha > 1.0) alpha = 2.0 - alpha;
-    double softAngle = 127.0 - 255.0 * alpha;
-    unsigned char softBit = static_cast<unsigned char>(clamp(softAngle / (1.0 + softAmp / 2.0) + 128.0, 0.0, 255.0));
-    (void)softBit;
-
+    // Vector smoothing quality metric
     double cval = std::cos(2.0 * phase);
     double sval = std::sin(2.0 * phase);
-    quality_ = decayavg(quality_, cval * cval + sval * sval, SQLDECAY);
+    qualityCos_ = decayavg(qualityCos_, cval, SQLDECAY);
+    qualitySin_ = decayavg(qualitySin_, sval, SQLDECAY);
+    quality_ = 100.0 * (qualityCos_ * qualityCos_ + qualitySin_ * qualitySin_);
+    snr_ = quality_;
 
-    if (quality_ > squelch_ / 100.0) {
+    // DCD tracking for preamble (0xAAAAAAAA) and carrier postamble (0x00000000)
+    dcdShreg_ = (dcdShreg_ << 2) | bits;
+    if (dcdShreg_ == 0xAAAAAAAA) {
         dcd_ = true;
-        acquire_ = dcdBits_ * 2;
-    } else if (acquire_ > 0) {
-        acquire_--;
-        if (acquire_ == 0) dcd_ = false;
+    } else if (dcdShreg_ == 0x00000000) {
+        dcd_ = false;
+    } else if (quality_ > squelch_) {
+        dcd_ = true;
+    } else {
+        dcd_ = false;
     }
 
-    if (!dcd_) return;
-
-    dcdShreg_ = (dcdShreg_ << 2) | (bit << 1) | 1;
-
-    if ((dcdShreg_ & 3) == 0) {
-        int c = Psk::varicode_decode(dcdShreg_ >> 2);
-        if (c >= 0 && c < 256) {
-            rxChars_.push_back(static_cast<char>(c));
-        }
-        dcdShreg_ = 0;
-    }
+    // Varicode bit decode:
+    // bits == 0 -> no phase change -> Varicode bit 1
+    // bits == 2 -> 180 deg phase reversal -> Varicode bit 0
+    int bit = (bits == 0) ? 1 : 0;
+    if (reverse_) bit = 1 - bit;
+    rxBit(bit);
 }
 
 void PskModem::rxBit(int bit) {
     shreg_ = (shreg_ << 1) | bit;
     if ((shreg_ & 3) == 0) {
         int c = Psk::varicode_decode(shreg_ >> 2);
-        if (c >= 0 && c < 256) {
+        if (c >= 0 && c < 256 && dcd_) {
             rxChars_.push_back(static_cast<char>(c));
         }
         shreg_ = 0;
@@ -251,20 +237,40 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
     double txPhaseInc = TWOPI * f0 / txSampleRate_;
     double txPhase = 0.0;
     cmplx prevSym(1.0, 0.0);
+    bool isFirstSymbol = true;
 
-    auto sendSymbol = [&](int sym) {
-        cmplx currSym = (sym == 0) ? cmplx(-1.0, 0.0) : cmplx(1.0, 0.0);
-        currSym = prevSym * currSym;
+    auto sendSymbol = [&](int sym, bool isLastHalfTaper = false) {
+        // Differential BPSK: 0 = 180 deg reversal, 1 = 0 deg
+        cmplx currSym = (sym == 0) ? -prevSym : prevSym;
+
         for (int i = 0; i < SAMPLES_PER_SYMBOL_TX; i++) {
-            double shape = txShape_[i];
-            double ival = shape * currSym.real() + (1.0 - shape) * prevSym.real();
-            double qval = shape * currSym.imag() + (1.0 - shape) * prevSym.imag();
+            // Raised cosine shaping from prevSym to currSym
+            double shapeA = txShape_[i];             // 1.0 -> 0.0
+            double shapeB = 1.0 - shapeA;           // 0.0 -> 1.0
+            double ival = shapeA * prevSym.real() + shapeB * currSym.real();
+            double qval = shapeA * prevSym.imag() + shapeB * currSym.imag();
+
+            // Smooth cosine ramp-up on the first half of the first symbol (no click)
+            if (isFirstSymbol && i < SAMPLES_PER_SYMBOL_TX / 2) {
+                double taper = 0.5 * (1.0 - std::cos(TWOPI * i / SAMPLES_PER_SYMBOL_TX));
+                ival *= taper;
+                qval *= taper;
+            }
+
+            // Smooth cosine ramp-down on the second half of the last postamble symbol
+            if (isLastHalfTaper && i >= SAMPLES_PER_SYMBOL_TX / 2) {
+                double taper = 0.5 * (1.0 + std::cos(TWOPI * (i - SAMPLES_PER_SYMBOL_TX / 2) / SAMPLES_PER_SYMBOL_TX));
+                ival *= taper;
+                qval *= taper;
+            }
+
             double out = ival * std::cos(txPhase) - qval * std::sin(txPhase);
-            txBuffer_.push_back(static_cast<int16_t>(clamp(out * 16000.0, -32767.0, 32767.0)));
+            txBuffer_.push_back(static_cast<int16_t>(clamp(out * 32767.0, -32767.0, 32767.0)));
             txPhase += txPhaseInc;
             if (txPhase >= TWOPI) txPhase -= TWOPI;
         }
         prevSym = currSym;
+        isFirstSymbol = false;
     };
 
     // PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift)
@@ -273,6 +279,7 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         sendSymbol(0);
     }
 
+    // Text data with Varicode and "00" inter-character delimiters
     for (unsigned char uc : text) {
         const char* code = Psk::varicode_encode(uc);
         for (int i = 0; code[i]; i++) {
@@ -285,29 +292,20 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
 
     // PSK31 postamble: 32 unmodulated carrier symbols (symbol 1 = bit 1 = 0° phase)
     // Matches fldigi standard BPSK31 postamble (dcdbits = 32)
-    for (int i = 0; i < 32; i++) {
+    for (int i = 0; i < 31; i++) {
         sendSymbol(1);
     }
+    // Last postamble symbol smoothly tapers second half to zero
+    sendSymbol(1, true);
 
-    // Final carrier ramp-down
-    cmplx currSym(1.0, 0.0);
-    for (int i = 0; i < 32; i++) {
-        for (int j = 0; j < SAMPLES_PER_SYMBOL_TX; j++) {
-            double out = currSym.real() * std::cos(txPhase) - currSym.imag() * std::sin(txPhase);
-            double taper = 0.5 * (1.0 + std::cos(M_PI_ * i / 32.0));
-            txBuffer_.push_back(static_cast<int16_t>(clamp(out * taper * 16000.0, -32767.0, 32767.0)));
-            txPhase += txPhaseInc;
-            if (txPhase >= TWOPI) txPhase -= TWOPI;
-        }
-    }
-    txBuffer_.insert(txBuffer_.end(), 4800, 0);
+    // 50ms silence (2400 samples at 48 kHz) to cleanly drain audio buffer
+    txBuffer_.insert(txBuffer_.end(), 2400, 0);
 
     return txBuffer_;
 }
 
 void PskModem::modulatePostamble(double f0) {
     (void)f0;
-    // Postamble is now handled inline in modulateText()
 }
 
 } // namespace Psk

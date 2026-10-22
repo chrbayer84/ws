@@ -2,6 +2,8 @@
 #include <cstdio>
 #include <cmath>
 #include <vector>
+#include <string>
+#include <cassert>
 
 int main() {
     bool all_passed = true;
@@ -20,29 +22,56 @@ int main() {
         all_passed = false;
     }
 
-    // Test 3: TX init and text modulation
-    modem.txInit();
-    std::vector<int16_t> txAudio = modem.modulateText("TEST", 1500.0);
-    if (txAudio.empty()) {
-        printf("FAIL: TX audio buffer empty\n");
-        all_passed = false;
-    } else {
-        printf("INFO: Generated %zu samples for TX\n", txAudio.size());
-    }
-
-    // Test 4: RX init
+    // Test 3: RX init
+    modem.setFrequency(1500.0);
     modem.rxInit();
     if (modem.isDCD()) {
         printf("FAIL: DCD should be false after init\n");
         all_passed = false;
     }
 
-    // Test 5: Process some silence (should not produce output)
-    std::vector<int16_t> silence(480, 0);
-    int symbols = modem.rxProcess(silence.data(), silence.size());
-    if (symbols < 0) {
-        printf("FAIL: rxProcess returned negative\n");
+    // Test 4: Process silence (should not produce false characters)
+    std::vector<int16_t> silence(4800, 0);
+    modem.rxProcess(silence.data(), silence.size());
+    if (modem.hasOutput()) {
+        printf("FAIL: Silence produced output: '%s'\n", modem.takeOutput().c_str());
         all_passed = false;
+    }
+
+    // Test 5: Full loopback round-trip test (48 kHz TX -> 4:1 decimate -> 12 kHz RX)
+    std::string const testText = "CQ CQ DE K1JT TEST 123";
+    std::vector<int16_t> txAudio = modem.modulateText(testText, 1500.0);
+    if (txAudio.empty()) {
+        printf("FAIL: TX audio buffer empty\n");
+        all_passed = false;
+    } else {
+        printf("INFO: Generated %zu samples for TX (48 kHz)\n", txAudio.size());
+    }
+
+    // Decimate 4:1 to 12 kHz
+    std::vector<int16_t> rxAudio;
+    rxAudio.reserve(txAudio.size() / 4);
+    for (size_t i = 0; i < txAudio.size(); i += 4) {
+        rxAudio.push_back(txAudio[i]);
+    }
+    printf("INFO: Decimated to %zu samples for RX (12 kHz)\n", rxAudio.size());
+
+    // Feed in chunks to simulate incoming audio stream
+    modem.rxInit();
+    size_t const chunkSize = 480; // 40ms at 12 kHz
+    for (size_t offset = 0; offset < rxAudio.size(); offset += chunkSize) {
+        size_t count = std::min(chunkSize, rxAudio.size() - offset);
+        modem.rxProcess(rxAudio.data() + offset, static_cast<int>(count));
+    }
+
+    std::string decoded = modem.takeOutput();
+    printf("INFO: Decoded text: '%s'\n", decoded.c_str());
+
+    if (decoded.find(testText) == std::string::npos) {
+        printf("FAIL: Decoded text does not contain expected '%s'\n", testText.c_str());
+        all_passed = false;
+    } else {
+        printf("SUCCESS: Decoded exact message '%s'\n", testText.c_str());
     }
 
     if (all_passed) {

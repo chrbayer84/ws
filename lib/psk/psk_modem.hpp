@@ -46,10 +46,11 @@ public:
 private:
     struct FirFilter {
         std::vector<double> coeffs;
-        std::vector<double> state_real;
-        std::vector<double> state_imag;
-        int decimation;
+        std::vector<double> buf_real;
+        std::vector<double> buf_imag;
+        int decimation = 1;
         int phase = 0;
+        int buf_idx = 0;
 
         FirFilter() = default;
         FirFilter(const std::vector<double>& c, int dec);
@@ -87,6 +88,8 @@ private:
     bool dcd_ = false;
     int acquire_ = 0;
 
+    double qualityCos_ = 0.0;
+    double qualitySin_ = 0.0;
     double quality_ = 0.0;
     double avgAmp_ = 0.0;
     double freqError_ = 0.0;

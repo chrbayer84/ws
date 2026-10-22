@@ -459,12 +459,12 @@ void CPlotter::draw(float swide[], bool bScroll, bool bRed)
     QString t;
     if(m_nUTC<0) {
       auto start = qt_truncate_date_time_to (QDateTime::currentDateTimeUtc(), m_TRperiod * 1e3)
-        .toString ((m_TRperiod < 60.) or (m_mode=="JTTY") ? "hh:mm:ss" : "hh:mm");
+        .toString ((m_TRperiod < 60.) or (m_mode=="JTTY") or (m_mode=="RTTY") or (m_mode=="PSK31") ? "hh:mm:ss" : "hh:mm");
       t = QString {"%1    %2"}.arg (start, m_rxBand);
     } else {
       auto hr = m_nUTC / 10000;
       auto start = QTime {hr, (m_nUTC - 10000 * hr) / 100, m_nUTC % 100}
-         .toString ((m_TRperiod < 60.) or (m_mode=="JTTY") ? "hh:mm:ss" : "hh:mm");
+         .toString ((m_TRperiod < 60.) or (m_mode=="JTTY") or (m_mode=="RTTY") or (m_mode=="PSK31") ? "hh:mm:ss" : "hh:mm");
       t = QString {"%1    %2"}.arg (start).arg (m_rxBand);
     }
     QRect rect{5, -2, m_w-10, painter1.fontMetrics().ascent()};
@@ -797,7 +797,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   int yTxTop=12;
   int yRxBottom=yTxTop + 2*yh + 4;
   if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65"
-      or m_mode=="RTTY" or m_mode.startsWith("FST4")) {
+      or m_mode=="RTTY" or m_mode=="PSK31" or m_mode.startsWith("FST4")) {
 
     if(m_mode=="FST4" and !m_bSingleDecode) {
       x1=XfromFreq(m_nfa);
@@ -810,15 +810,18 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
 
     if(m_mode=="RTTY" or m_mode=="PSK31") {
       painter0.setPen(penGreen);
-      x1=XfromFreq(m_rxFreq-m_tol);
-      x2=XfromFreq(m_rxFreq+m_tol);
-      painter0.drawLine(x1,26,x2,26);           // Tolerance bar centered on rxFreq
-      x1=XfromFreq(m_rxFreq-0.5*bw);            // Lower tone (Space for RTTY, lower edge for PSK31)
-      painter0.drawLine(x1,20,x1,26);
-      x3=XfromFreq(m_rxFreq);                   // Center frequency tick (f0)
-      painter0.drawLine(x3,17,x3,26);
-      x6=XfromFreq(m_rxFreq+0.5*bw);            // Upper tone (Mark for RTTY, upper edge for PSK31)
-      painter0.drawLine(x6,20,x6,26);
+      int x_left = XfromFreq(m_rxFreq - 0.5 * bw);
+      int x_right = XfromFreq(m_rxFreq + 0.5 * bw);
+      painter0.drawLine(x_left, 26, x_right, 26);           // Goalpost crossbar
+      painter0.drawLine(x_left, 20, x_left, 26);            // Left goalpost leg
+      painter0.drawLine(x_right, 20, x_right, 26);          // Right goalpost leg
+      x3 = XfromFreq(m_rxFreq);                             // Center frequency tick (f0)
+      painter0.drawLine(x3, 17, x3, 26);
+      if (m_tol > 0) {
+        x1 = XfromFreq(m_rxFreq - m_tol);
+        x2 = XfromFreq(m_rxFreq + m_tol);
+        painter0.drawLine(x1, 26, x2, 26);                 // Tolerance bar
+      }
     } else if(m_mode=="Q65" or m_mode=="JTTY" or (m_mode=="JT65" and m_bVHF) or (m_mode=="FT8" and m_bSuperHound)) {
       painter0.setPen(penGreen);
       x1=XfromFreq(m_rxFreq-m_tol);

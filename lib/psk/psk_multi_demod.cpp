@@ -22,22 +22,28 @@ void PskMultiDemod::setSampleRate(double rate) {
 }
 
 void PskMultiDemod::setFrequencyRange(int low, int high) {
-    lowFreq_ = low;
-    highFreq_ = high;
-    reset();
+    if (lowFreq_ != low || highFreq_ != high) {
+        lowFreq_ = low;
+        highFreq_ = high;
+        reset();
+    }
 }
 
 void PskMultiDemod::setSquelch(double s) {
-    squelch_ = s;
-    for (auto& ch : channels_) {
-        if (ch.modem) ch.modem->setSquelch(s);
+    if (std::abs(squelch_ - s) > 0.01) {
+        squelch_ = s;
+        for (auto& ch : channels_) {
+            if (ch.modem) ch.modem->setSquelch(s);
+        }
     }
 }
 
 void PskMultiDemod::setReverse(bool rev) {
-    reverse_ = rev;
-    for (auto& ch : channels_) {
-        if (ch.modem) ch.modem->setReverse(rev);
+    if (reverse_ != rev) {
+        reverse_ = rev;
+        for (auto& ch : channels_) {
+            if (ch.modem) ch.modem->setReverse(rev);
+        }
     }
 }
 
