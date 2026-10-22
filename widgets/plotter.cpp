@@ -807,7 +807,18 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
       painter0.drawLine(x2,25,x2-5,20);
     }
 
-    if(m_mode=="Q65" or m_mode=="JTTY" or m_mode=="RTTY" or (m_mode=="JT65" and m_bVHF) or (m_mode=="FT8" and m_bSuperHound)) {
+    if(m_mode=="RTTY") {
+      painter0.setPen(penGreen);
+      x1=XfromFreq(m_rxFreq-m_tol);
+      x2=XfromFreq(m_rxFreq+m_tol);
+      painter0.drawLine(x1,26,x2,26);           // Tolerance bar centered on rxFreq
+      x1=XfromFreq(m_rxFreq-0.5*bw);            // Lower tone (Space, -85 Hz)
+      painter0.drawLine(x1,20,x1,26);
+      x3=XfromFreq(m_rxFreq);                   // Center frequency tick (f0)
+      painter0.drawLine(x3,17,x3,26);
+      x6=XfromFreq(m_rxFreq+0.5*bw);            // Upper tone (Mark, +85 Hz)
+      painter0.drawLine(x6,20,x6,26);
+    } else if(m_mode=="Q65" or m_mode=="JTTY" or (m_mode=="JT65" and m_bVHF) or (m_mode=="FT8" and m_bSuperHound)) {
       painter0.setPen(penGreen);
       x1=XfromFreq(m_rxFreq-m_tol);
       x2=XfromFreq(m_rxFreq+m_tol);
@@ -852,7 +863,14 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
     overPainter.fillRect(0, 0, m_Size.width(), m_h, Qt::transparent);
   }
 
-  if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode=="RTTY" or m_mode.startsWith("FST4")) {
+  if(m_mode=="RTTY") {
+    x1=XfromFreq(m_rxFreq - 0.5*bw);
+    x2=XfromFreq(m_rxFreq + 0.5*bw);
+    if (m_bars) {
+      overPainter.setPen(Qt::green);                   // Rx bars
+      overPainter.drawLine(x1,0,x1,m_h); overPainter.drawLine(x2,0,x2,m_h);
+    }
+  } else if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode.startsWith("FST4")) {
     x1=XfromFreq(m_rxFreq);
     if(m_mode=="FT8" and m_bSuperHound) {
       x2=XfromFreq(m_rxFreq+1500);
@@ -866,7 +884,14 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red bars
-  if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode=="RTTY" or m_mode=="JTTY" or m_mode.startsWith("FST4")
+  if(m_mode=="RTTY") {
+    x1=XfromFreq(m_txFreq - 0.5*bw);
+    x2=XfromFreq(m_txFreq + 0.5*bw);
+    if (m_bars) {
+      overPainter.setPen(Qt::red);                   // Tx bars
+      overPainter.drawLine(x1,0,x1,m_h); overPainter.drawLine(x2,0,x2,m_h);
+    }
+  } else if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode=="JTTY" or m_mode.startsWith("FST4")
      or m_mode.mid(0,4)=="WSPR") {
     x1=XfromFreq(m_txFreq); x2=XfromFreq(m_txFreq+bw);
     if(m_mode=="FT8" and m_bSuperFox) x2=XfromFreq(m_txFreq+1500.0);
@@ -881,7 +906,18 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red goal post
-  if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode=="RTTY" or m_mode=="JTTY" or m_mode.startsWith("FST4")
+  if(m_mode=="RTTY") {
+    painter0.setPen(penRed);
+    x1=XfromFreq(m_txFreq - 0.5*bw);
+    x2=XfromFreq(m_txFreq + 0.5*bw);
+    // Draw the red goal post centered on txFreq
+    painter0.drawLine(x1,yTxTop,x1,yTxTop+yh);
+    painter0.drawLine(x1,yTxTop,x2,yTxTop);
+    painter0.drawLine(x2,yTxTop,x2,yTxTop+yh);
+    // Draw center tick
+    x3=XfromFreq(m_txFreq);
+    painter0.drawLine(x3,yTxTop,x3,yTxTop+yh/2);
+  } else if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65" or m_mode=="JTTY" or m_mode.startsWith("FST4")
       or m_mode.mid(0,4)=="WSPR") {
     painter0.setPen(penRed);
     x1=XfromFreq(m_txFreq);
