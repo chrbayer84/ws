@@ -56,7 +56,11 @@ private:
     double frequency {0.0};
     bool active {false};
     int idleFrames {0};
+    double snr {0.0};
+    qint64 lastTextSample {0};
+    int generation {-1};          // RttyMultiDemod::generation of the signal the text came from
   };
+  static constexpr qint64 idleSamples = 18000;   // 1.5 s without text ends a message
   std::vector<ChannelState> channels_;
 
   QVector<Jtty::MessageUpdate> pendingUpdates_;
