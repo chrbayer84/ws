@@ -14287,6 +14287,10 @@ void MainWindow::setFreq4(int rxFreq, int txFreq)
   if ((m_mode=="Q65" or m_mode=="JT65") && ui->actionDisable_clicks_on_waterfall->isVisible() && ui->actionDisable_clicks_on_waterfall->isChecked()
       && !(Qt::AltModifier & QApplication::keyboardModifiers ())) return;
   if (m_mode=="ECHO") return; // we do not adjust rx/tx for echo mode -- always 1500Hz
+  if (isConversationalMode()) {
+    ui->RxFreqSpinBox_2->setValue(rxFreq);
+    ui->TxFreqSpinBox_2->setValue(txFreq);
+  }
   if (ui->RxFreqSpinBox->isEnabled () && !(SpecOp::HOUND==m_specOp && m_config.superFox() &&
       (rxFreq < 700 or rxFreq > 800))) ui->RxFreqSpinBox->setValue(rxFreq);
   if(m_mode=="WSPR" or m_mode=="FST4W") {
