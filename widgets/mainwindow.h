@@ -59,6 +59,7 @@
 #include "widgets/JttyN1mmOutput.hpp"
 #include "widgets/JttyTransmitQueue.hpp"
 #include "RttyDecoder.hpp"
+#include "PskDecoder.hpp"
 
 #define NUM_JT4_SYMBOLS 206                //(72+31)*2, embedded sync
 #define NUM_JT65_SYMBOLS 126               //63 data + 63 sync
@@ -1281,7 +1282,8 @@ private:
   std::unique_ptr<Rtty::RttyModem> m_rttyTxModem;
   std::unique_ptr<Psk::PskModem> m_pskTxModem;
   Rtty::Decoder m_rttyDecoder;
-  TxAudioQueueEpoch m_jttyTxQueueEpoch {};
+  Psk::Decoder m_pskDecoder;
+  TxAudioQueueEpoch m_jttyTxQueueEpoch {};;
   TxAudioQueueProgress m_jttyTxQueueProgress {};
   struct PendingJttyTciMessage
   {

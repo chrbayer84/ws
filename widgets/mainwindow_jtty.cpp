@@ -437,7 +437,12 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
     double const elapsed = qMax(0.0, double(k) / 12000.0 - double(tsync));
     return QDateTime::currentDateTimeUtc().addMSecs(-qRound64(1000.0 * elapsed));
   };
-  (void)jttyLineDateTimeUtc;
+  auto jttyLineDisplayDateTimeUtc = [this, &jttyLineDateTimeUtc] (float tsync) -> QDateTime {
+    if (m_diskData) {
+      return Jtty::jttyLineStartTimeUtc (m_UTCdiskDateTime, m_UTCdisk, tsync);
+    }
+    return jttyLineDateTimeUtc (tsync);
+  };
 
   bool const newAllFreqsSession = (k <= m_jttyLastAllFreqsK);
   m_jttyLastAllFreqsK = k;
@@ -452,21 +457,110 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       m_bDecoded = false;
       m_jttyLastSavedWavK0 = -1;
       
-      // Reset PSK decoder session
+      m_pskDecoder.begin(1, 0, 0); // Reset PSK decoder session
   }
-  (void)ui->RxFreqSpinBox_2->value();
-  (void)ui->sbFtol_2->value();
-  (void)m_wideGraph->nStartFreq();
-  (void)m_wideGraph->Fmax();
+  float f0 = ui->RxFreqSpinBox_2->value();
+  float ftol = ui->sbFtol_2->value();
+  int nfa = m_wideGraph->nStartFreq();
+  int nfb = m_wideGraph->Fmax();
 
   if (istart0 >= 0) {
-    // PSK decoder would be initialized and process here
+    m_pskDecoder.begin(1, 0, istart0);
+    int count = (istop > istart0) ? (istop - istart0) : (k - istart0);
+    if (count > 0 && istart0 + count <= k) {
+      m_pskDecoder.process(dec_data.d2 + istart0, count, istart0, istop, 1000, nfa, nfb, f0, ftol);
+    }
   } else {
-    // Incremental processing
+    qint64 last_k = m_pskDecoder.nextRequiredSample();
+    if (k > last_k) {
+      int count = k - last_k;
+      m_pskDecoder.process(dec_data.d2 + last_k, count, last_k, k, 1000, nfa, nfb, f0, ftol);
+    }
   }
-   
-  // Placeholder for now - will integrate PskDecoder class later
-  return false;
+
+  QVector<Jtty::MessageUpdate> updates = m_pskDecoder.takeUpdates();
+
+  // Process PSK31 decodes (similar to RTTY)
+  for (auto const& update : updates) {
+    if (update.complete && update.text.trimmed().length() >= 3) {
+      QString displayLine = formatJttyDecodeLine(
+        update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
+      if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
+      if (ui->cbIncludeTime->isChecked()) {
+        QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
+        if (!time.isEmpty()) displayLine = time + " " + displayLine;
+      }
+      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      if (cursor.position() > 0) cursor.insertBlock();
+      
+      // CQ highlighting for All Decodes pane
+      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ");
+      QTextCharFormat format;
+      format.setFont(ui->decodedTextBrowser->contentFont());
+      if (isCQ) {
+        format.setBackground(QBrush(QColor(0, 180, 0, 180)));  // green highlight
+      }
+      cursor.insertText(displayLine, format);
+      ui->decodedTextBrowser->setTextCursor(cursor);
+      ui->decodedTextBrowser->ensureCursorVisible();
+
+      write_all("Rx", formatJttyDecodeLine(update.frequency, update.snr, update.text.trimmed()),
+                jttyLineDateTimeUtc(update.sequenceStart));
+    }
+  }
+
+  bool const qsoDisplayOptionsChanged = !m_jttyQsoLines.isEmpty()
+      && (m_jttyQsoRenderedLowerCase != ui->cbLowerCase->isChecked()
+          || m_jttyQsoRenderedIncludeTime != ui->cbIncludeTime->isChecked());
+  bool anyEom {false};
+  bool anyLineChanged {false};
+  for (auto const& update : updates) {
+    auto known = std::find_if(m_jttyQsoLines.begin(), m_jttyQsoLines.end(),
+                              [&update] (JttyQsoLine const& line) {
+                                return line.messageId == update.messageId;
+                              });
+    bool const alreadyPresent = known != m_jttyQsoLines.end();
+    float const effectiveTol = ftol;
+    if (!Jtty::shouldApplyToQsoHistory(
+            alreadyPresent, update.frequency, f0, effectiveTol)) {
+      continue;
+    }
+    if (update.complete) anyEom = true;
+
+    QString delta;
+    if (alreadyPresent) {
+        auto const change = Jtty::compareMessages(known->text, update.text);
+        bool const frequencyChanged = known->frequency != update.frequency;
+        if (!change.messageChanged && !frequencyChanged) continue;
+        if (change.messageChanged) {
+            if (change.extendsMessage) {
+                delta = change.appendedText;
+            } else {
+                delta = update.text;
+            }
+        }
+        known->frequency = update.frequency;
+        known->text = update.text;
+    } else {
+        delta = update.text;
+        auto const allLine = std::find_if (
+          m_jttyAllFreqLines.cbegin (), m_jttyAllFreqLines.cend (),
+          [&update] (JttyDecodeLine const& line) {
+            return line.messageId == update.messageId;
+          });
+        QDateTime const messageStartUtc = allLine != m_jttyAllFreqLines.cend ()
+          ? allLine->messageStartUtc
+          : jttyLineDisplayDateTimeUtc (update.sequenceStart);
+        m_jttyQsoLines.append({update.messageId, update.frequency, update.text,
+                               update.sequenceStart, messageStartUtc, update.snr});
+    }
+    anyLineChanged = true;
+    m_bDecoded = true;
+  }
+
+  if (anyLineChanged || qsoDisplayOptionsChanged) renderJttyQsoLines ();
+  return anyEom;
 }
 
 bool MainWindow::jtty_decode(int k, int istart0, int istop)

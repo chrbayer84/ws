@@ -38,6 +38,7 @@ public:
     void rxProcess(const int16_t* samples, int count);
 
     struct DecodeResult {
+        int channelId;
         double frequency;
         std::string text;
         double snr;

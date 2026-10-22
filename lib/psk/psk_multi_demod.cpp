@@ -104,6 +104,7 @@ void PskMultiDemod::rxProcess(const int16_t* samples, int count) {
 
         if (ch.idleFrames > 50 && ch.hasText && ch.text.size() >= 3) {
             DecodeResult result;
+            result.channelId = i;
             result.frequency = ch.frequency;
             result.text = ch.text;
             result.snr = snr;
@@ -119,6 +120,7 @@ void PskMultiDemod::rxProcess(const int16_t* samples, int count) {
 
         if (ch.timeout > 200 && ch.hasText && ch.text.size() >= 3) {
             DecodeResult result;
+            result.channelId = i;
             result.frequency = ch.frequency;
             result.text = ch.text;
             result.snr = snr;
