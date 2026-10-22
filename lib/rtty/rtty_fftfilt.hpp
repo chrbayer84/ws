@@ -1,11 +1,3 @@
-//==============================================================================
-// rtty_fftfilt.hpp:
-//
-// Fast convolution Overlap-Add filter using FFTW3
-//
-// This file is part of WSJT-X.
-//==============================================================================
-
 #ifndef RTTY_FFTFILT_HPP
 #define RTTY_FFTFILT_HPP
 
@@ -15,6 +7,8 @@
 
 namespace Rtty
 {
+  using fftwf_complex = float[2];  // FFTW3 native single-precision complex type
+
   class FFTFilter
   {
   public:
@@ -36,14 +30,14 @@ namespace Rtty
     int flen_ {0};
     int flen2_ {0};
     
-    fftw_plan fftPlan_ {nullptr};
-    fftw_plan ifftPlan_ {nullptr};
+    fftwf_plan fftPlan_ {nullptr};
+    fftwf_plan ifftPlan_ {nullptr};
 
-    cmplx * filter_ {nullptr};
-    cmplx * timedata_ {nullptr};
-    cmplx * freqdata_ {nullptr};
-    cmplx * ovlbuf_ {nullptr};
-    cmplx * output_ {nullptr};
+    fftwf_complex * filter_ {nullptr};
+    fftwf_complex * timedata_ {nullptr};
+    fftwf_complex * freqdata_ {nullptr};
+    fftwf_complex * ovlbuf_ {nullptr};
+    fftwf_complex * output_ {nullptr};
     int inptr_ {0};
     int pass_ {0};
   };

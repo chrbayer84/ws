@@ -2,6 +2,7 @@
 // rtty_filters.cpp:
 //
 // Filter definitions and DSP helpers for RTTY (ported from fldigi)
+// Single precision version using float
 //
 // This file is part of WSJT-X.
 //==============================================================================
@@ -11,7 +12,7 @@
 namespace Rtty
 {
   MovingAverage::MovingAverage(int filtlen)
-    : in_ {new double[filtlen > 0 ? filtlen : 1]}
+    : in_ {new float[filtlen > 0 ? filtlen : 1]}
     , len_ {filtlen > 0 ? filtlen : 1}
     , empty_ {true}
   {
@@ -22,12 +23,12 @@ namespace Rtty
     delete [] in_;
   }
 
-  double MovingAverage::run(double a)
+  float MovingAverage::run(float a)
   {
     if (!in_ || len_ <= 0) return a;
     if (empty_) {
       empty_ = false;
-      out_ = 0.0;
+      out_ = 0.0f;
       for (int i = 0; i < len_; ++i) {
         in_[i] = a;
         out_ += a;
@@ -46,7 +47,7 @@ namespace Rtty
     if (filtlen <= 0) filtlen = 1;
     if (filtlen > len_) {
       delete [] in_;
-      in_ = new double[filtlen];
+      in_ = new float[filtlen];
     }
     len_ = filtlen;
     empty_ = true;
@@ -55,7 +56,7 @@ namespace Rtty
   void MovingAverage::reset()
   {
     empty_ = true;
-    out_ = 0.0;
+    out_ = 0.0f;
     pint_ = 0;
   }
 }

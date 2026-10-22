@@ -864,7 +864,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
     overPainter.fillRect(0, 0, m_Size.width(), m_h, Qt::transparent);
   }
 
-  if(m_mode=="RTTY") {
+  if(m_mode=="RTTY" or m_mode=="PSK31") {
     x1=XfromFreq(m_rxFreq - 0.5*bw);
     x2=XfromFreq(m_rxFreq + 0.5*bw);
     if (m_bars) {

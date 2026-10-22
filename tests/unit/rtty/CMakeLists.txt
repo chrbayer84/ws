@@ -17,7 +17,7 @@ add_executable (test_rtty_modem
   ${CMAKE_SOURCE_DIR}/lib/rtty/rtty_modem.cpp
 )
 target_include_directories (test_rtty_modem PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries (test_rtty_modem PRIVATE fftw3)
+target_link_libraries (test_rtty_modem PRIVATE fftw3f)
 add_test (NAME test_rtty_modem COMMAND test_rtty_modem)
 set_tests_properties (test_rtty_modem PROPERTIES
   PASS_REGULAR_EXPRESSION "test_rtty_modem: all checks passed"

@@ -19,34 +19,34 @@
 
 namespace Rtty
 {
-  using cmplx = std::complex<double>;
+  using cmplx = std::complex<float>;
 
-  inline double sinc(double x)
+  inline float sinc(float x)
   {
-    if (std::fabs(x) < 1e-10) return 1.0;
+    if (std::fabs(x) < 1e-10f) return 1.0f;
     return std::sin(M_PI * x) / (M_PI * x);
   }
 
-  inline double clamp(double x, double minVal, double maxVal)
+  inline float clamp(float x, float minVal, float maxVal)
   {
     return (x < minVal) ? minVal : ((x > maxVal) ? maxVal : x);
   }
 
-  inline double decayavg(double average, double input, int weight)
+  inline float decayavg(float average, float input, int weight)
   {
     if (weight <= 1) return input;
-    return ((input - average) / static_cast<double>(weight)) + average;
+    return ((input - average) / static_cast<float>(weight)) + average;
   }
 
-  inline double rcos(double t, double T, double alpha = 1.0)
+  inline float rcos(float t, float T, float alpha = 1.0f)
   {
-    if (t == 0.0) return 1.0;
-    double const taT = T / (2.0 * alpha);
+    if (t == 0.0f) return 1.0f;
+    float const taT = T / (2.0f * alpha);
     if (std::fabs(t) == taT) {
-      return (alpha / 2.0) * std::sin(M_PI / (2.0 * alpha));
+      return (alpha / 2.0f) * std::sin(M_PI / (2.0f * alpha));
     }
     return (std::sin(M_PI * t / T) / (M_PI * t / T)) *
-           std::cos(alpha * M_PI * t / T) / (1.0 - (t / taT) * (t / taT));
+           std::cos(alpha * M_PI * t / T) / (1.0f - (t / taT) * (t / taT));
   }
 
   class MovingAverage
@@ -58,14 +58,14 @@ namespace Rtty
     MovingAverage(MovingAverage const&) = delete;
     MovingAverage& operator=(MovingAverage const&) = delete;
 
-    double run(double a);
+    float run(float a);
     void setLength(int filtlen);
     void reset();
-    double value() const { return len_ > 0 ? (out_ / len_) : 0.0; }
+    float value() const { return len_ > 0 ? (out_ / len_) : 0.0f; }
 
   private:
-    double * in_ {nullptr};
-    double out_ {0.0};
+    float * in_ {nullptr};
+    float out_ {0.0f};
     int len_ {0};
     int pint_ {0};
     bool empty_ {true};

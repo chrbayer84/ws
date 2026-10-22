@@ -1,7 +1,7 @@
 //==============================================================================
 // rtty_fftfilt.cpp:
 //
-// Fast convolution Overlap-Add filter using FFTW3
+// Fast convolution Overlap-Add filter using FFTW3 (single precision)
 //
 // This file is part of WSJT-X.
 //==============================================================================
@@ -9,6 +9,7 @@
 #include "rtty_fftfilt.hpp"
 #include <iostream>
 #include <algorithm>
+#include <vector>
 
 namespace Rtty
 {
@@ -27,34 +28,29 @@ namespace Rtty
 
   FFTFilter::~FFTFilter()
   {
-    if (fftPlan_) fftw_destroy_plan(fftPlan_);
-    if (ifftPlan_) fftw_destroy_plan(ifftPlan_);
+    if (fftPlan_) fftwf_destroy_plan(fftPlan_);
+    if (ifftPlan_) fftwf_destroy_plan(ifftPlan_);
 
-    fftw_free(filter_);
-    fftw_free(timedata_);
-    fftw_free(freqdata_);
-    fftw_free(output_);
-    fftw_free(ovlbuf_);
+    fftwf_free(filter_);
+    fftwf_free(timedata_);
+    fftwf_free(freqdata_);
+    fftwf_free(output_);
+    fftwf_free(ovlbuf_);
   }
 
   void FFTFilter::init_filter()
   {
     flen2_ = flen_ >> 1;
 
-    // Use fftw_malloc for correct alignment
-    filter_ = static_cast<cmplx*>(fftw_malloc(flen_ * sizeof(cmplx)));
-    timedata_ = static_cast<cmplx*>(fftw_malloc(flen_ * sizeof(cmplx)));
-    freqdata_ = static_cast<cmplx*>(fftw_malloc(flen_ * sizeof(cmplx)));
-    output_ = static_cast<cmplx*>(fftw_malloc(flen_ * sizeof(cmplx)));
-    ovlbuf_ = static_cast<cmplx*>(fftw_malloc(flen2_ * sizeof(cmplx)));
+    // Use fftwf_malloc for correct alignment (single precision)
+    filter_ = static_cast<fftwf_complex*>(fftwf_malloc(flen_ * sizeof(fftwf_complex)));
+    timedata_ = static_cast<fftwf_complex*>(fftwf_malloc(flen_ * sizeof(fftwf_complex)));
+    freqdata_ = static_cast<fftwf_complex*>(fftwf_malloc(flen_ * sizeof(fftwf_complex)));
+    output_ = static_cast<fftwf_complex*>(fftwf_malloc(flen_ * sizeof(fftwf_complex)));
+    ovlbuf_ = static_cast<fftwf_complex*>(fftwf_malloc(flen2_ * sizeof(fftwf_complex)));
 
-    fftPlan_ = fftw_plan_dft_1d(flen_, reinterpret_cast<fftw_complex*>(timedata_), 
-                                 reinterpret_cast<fftw_complex*>(freqdata_), 
-                                 FFTW_FORWARD, FFTW_ESTIMATE);
-    
-    ifftPlan_ = fftw_plan_dft_1d(flen_, reinterpret_cast<fftw_complex*>(freqdata_), 
-                                  reinterpret_cast<fftw_complex*>(output_), 
-                                  FFTW_BACKWARD, FFTW_ESTIMATE);
+    fftPlan_ = fftwf_plan_dft_1d(flen_, timedata_, freqdata_, FFTW_FORWARD, FFTW_ESTIMATE);
+    ifftPlan_ = fftwf_plan_dft_1d(flen_, freqdata_, output_, FFTW_BACKWARD, FFTW_ESTIMATE);
 
     clear_filter();
   }
@@ -62,12 +58,12 @@ namespace Rtty
   void FFTFilter::clear_filter()
   {
     for (int i = 0; i < flen_; ++i) {
-      timedata_[i] = cmplx(0.0, 0.0);
-      freqdata_[i] = cmplx(0.0, 0.0);
-      output_[i] = cmplx(0.0, 0.0);
+      timedata_[i][0] = 0.0f; timedata_[i][1] = 0.0f;
+      freqdata_[i][0] = 0.0f; freqdata_[i][1] = 0.0f;
+      output_[i][0] = 0.0f; output_[i][1] = 0.0f;
     }
     for (int i = 0; i < flen2_; ++i) {
-      ovlbuf_[i] = cmplx(0.0, 0.0);
+      ovlbuf_[i][0] = 0.0f; ovlbuf_[i][1] = 0.0f;
     }
     inptr_ = 0;
     pass_ = 1;
@@ -75,20 +71,20 @@ namespace Rtty
 
   void FFTFilter::rtty_filter(double f)
   {
-    f *= 1.4;
+    float f_ = static_cast<float>(f) * 1.4f;
 
     for (int i = 0; i < flen2_; ++i) {
-      double const x = static_cast<double>(i) / static_cast<double>(flen2_);
-      double dht = (x <= 0.0) ? 1.0 :
-                   (x > 2.0 * f) ? 0.0 :
-                   std::cos((M_PI * x) / (f * 4.0));
+      float const x = static_cast<float>(i) / static_cast<float>(flen2_);
+      float dht = (x <= 0.0f) ? 1.0f :
+                   (x > 2.0f * f_) ? 0.0f :
+                   std::cos((M_PI * x) / (f_ * 4.0f));
       dht *= dht; // cos^2
-      dht /= sinc(2.0 * i * f);
+      dht /= sinc(2.0f * i * f_);
 
-      filter_[i] = cmplx(dht * std::cos(i * -0.5 * M_PI),
-                         dht * std::sin(i * -0.5 * M_PI));
-      filter_[(flen_ - i) % flen_] = cmplx(dht * std::cos(i * 0.5 * M_PI),
-                                           dht * std::sin(i * 0.5 * M_PI));
+      filter_[i][0] = dht * std::cos(i * -0.5f * M_PI);
+      filter_[i][1] = dht * std::sin(i * -0.5f * M_PI);
+      filter_[(flen_ - i) % flen_][0] = dht * std::cos(i * 0.5f * M_PI);
+      filter_[(flen_ - i) % flen_][1] = dht * std::sin(i * 0.5f * M_PI);
     }
 
     pass_ = 1;
@@ -96,41 +92,54 @@ namespace Rtty
 
   int FFTFilter::run(cmplx const& in, cmplx ** out)
   {
-    timedata_[inptr_++] = in;
+    timedata_[inptr_][0] = in.real();
+    timedata_[inptr_][1] = in.imag();
+    inptr_++;
     if (inptr_ < flen2_) return 0;
-    if (pass_ > 0) --pass_;
+    if (pass_ > 0) pass_--;
 
     // Zero-pad second half
     for (int i = flen2_; i < flen_; ++i) {
-      timedata_[i] = cmplx(0.0, 0.0);
+      timedata_[i][0] = 0.0f;
+      timedata_[i][1] = 0.0f;
     }
 
-    fftw_execute_dft(fftPlan_, reinterpret_cast<fftw_complex*>(timedata_), 
-                     reinterpret_cast<fftw_complex*>(freqdata_));
+    fftwf_execute_dft(fftPlan_, timedata_, freqdata_);
 
     for (int i = 0; i < flen_; ++i) {
-      freqdata_[i] *= filter_[i];
+      float re = freqdata_[i][0] * filter_[i][0] - freqdata_[i][1] * filter_[i][1];
+      float im = freqdata_[i][0] * filter_[i][1] + freqdata_[i][1] * filter_[i][0];
+      freqdata_[i][0] = re;
+      freqdata_[i][1] = im;
     }
 
-    fftw_execute_dft(ifftPlan_, reinterpret_cast<fftw_complex*>(freqdata_), 
-                     reinterpret_cast<fftw_complex*>(output_));
+    fftwf_execute_dft(ifftPlan_, freqdata_, output_);
 
     // Normalize FFTW backward scale (1/N)
-    double const scale = 1.0 / static_cast<double>(flen_);
+    float const scale = 1.0f / static_cast<float>(flen_);
     for (int i = 0; i < flen_; ++i) {
-      output_[i] *= scale;
+      output_[i][0] *= scale;
+      output_[i][1] *= scale;
     }
 
     // Overlap and add
     for (int i = 0; i < flen2_; ++i) {
-      output_[i] = ovlbuf_[i] + output_[i];
-      ovlbuf_[i] = output_[i + flen2_];
+      output_[i][0] = ovlbuf_[i][0] + output_[i][0];
+      output_[i][1] = ovlbuf_[i][1] + output_[i][1];
+      ovlbuf_[i][0] = output_[i + flen2_][0];
+      ovlbuf_[i][1] = output_[i + flen2_][1];
     }
 
     inptr_ = 0;
     if (pass_ > 0) return 0;
 
-    *out = output_;
+    // Convert output to cmplx* by creating a static buffer
+    static std::vector<cmplx> outbuf;
+    outbuf.resize(flen2_);
+    for (int i = 0; i < flen2_; ++i) {
+      outbuf[i] = cmplx(output_[i][0], output_[i][1]);
+    }
+    *out = outbuf.data();
     return flen2_;
   }
 }
