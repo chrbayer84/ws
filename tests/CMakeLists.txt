@@ -36,3 +36,4 @@ add_test (test_tx_inhibit_gate test_tx_inhibit_gate)
 # RTTY unit tests
 add_subdirectory (unit/rtty)
 add_subdirectory (unit/common)
+add_subdirectory (unit/psk)

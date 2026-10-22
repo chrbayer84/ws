@@ -365,6 +365,9 @@ set (wsjtx_CXXSRCS
   lib/rtty/rtty_multi_demod.cpp
   lib/rtty/rtty_shaper.cpp
   RttyDecoder.cpp
+  lib/psk/psk_varicode.cpp
+  lib/psk/psk_modem.cpp
+  lib/psk/psk_multi_demod.cpp
   )
 
 if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
