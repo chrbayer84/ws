@@ -1001,14 +1001,13 @@ void MainWindow::completeJttyTxEnqueue(qint64 requestId, QString const& message,
 
   ui->decodedTextBrowser2->insertText(" ");
   QTextCursor cursor = ui->decodedTextBrowser2->textCursor();
-  QTextCharFormat format = cursor.charFormat();
+  QTextCharFormat originalFormat = cursor.charFormat();
+  QTextCharFormat format = originalFormat;
   format.setBackground(QBrush(QColor(Qt::yellow)));
   format.setForeground(QBrush(QColor(Qt::black)));   // readable in dark style too
   cursor.setCharFormat(format);
   cursor.insertText(Jtty::wrapMessage(message));
-  format.clearBackground();                          // back to the style's colours,
-  format.clearForeground();                          // not a fixed white
-  cursor.setCharFormat(format);
+  cursor.setCharFormat(originalFormat);  // Restore original format completely
 
   handleJttyContestSerial(message);
 
