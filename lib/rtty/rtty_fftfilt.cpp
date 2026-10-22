@@ -49,6 +49,14 @@ namespace Rtty
     output_ = static_cast<fftwf_complex*>(fftwf_malloc(flen_ * sizeof(fftwf_complex)));
     ovlbuf_ = static_cast<fftwf_complex*>(fftwf_malloc(flen2_ * sizeof(fftwf_complex)));
 
+    // N6NU: rtty_filter() never writes filter_[flen2_], and fftw_malloc'd memory
+    // is not zeroed: a stale NaN there killed the channel for good (it showed in
+    // WS, never in a fresh test process). Start from an all-zero response.
+    for (int i = 0; i < flen_; ++i) {
+      filter_[i][0] = 0.0f;
+      filter_[i][1] = 0.0f;
+    }
+
     fftPlan_ = fftwf_plan_dft_1d(flen_, timedata_, freqdata_, FFTW_FORWARD, FFTW_ESTIMATE);
     ifftPlan_ = fftwf_plan_dft_1d(flen_, freqdata_, output_, FFTW_BACKWARD, FFTW_ESTIMATE);
 
