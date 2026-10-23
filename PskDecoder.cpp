@@ -89,7 +89,11 @@ void Decoder::flushChannelMessage(int channelId, const PskMultiDemod::DecodeResu
   }
 
   if (ch.active) {
-    QString const cleanText = ch.text.trimmed();
+    // Normalize newlines and whitespace: keep each transmission on one clean line like FT8
+    QString cleanText = ch.text;
+    cleanText.replace(QLatin1Char{'\r'}, QLatin1Char{' '});
+    cleanText.replace(QLatin1Char{'\n'}, QLatin1Char{' '});
+    cleanText = cleanText.simplified();
     if (cleanText.length() >= 3) {
       Jtty::MessageUpdate update;
       update.messageId = ch.messageId;

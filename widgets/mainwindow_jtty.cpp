@@ -6,6 +6,7 @@
 #include "JttyN1mm.hpp"
 #include "JttyReplay.hpp"
 #include "Logger.hpp"
+#include "models/DecodeHighlightingModel.hpp"
 #include <QByteArray>
 #include <QDateTime>
 #include "Modulator/Modulator.hpp"
@@ -92,6 +93,32 @@ namespace
     QString const snrText = QStringLiteral("%1").arg(snr, 3);
     return message.isEmpty() ? frequencyText
       : frequencyText + QStringLiteral(" ") + snrText + QStringLiteral("  ") + message;
+  }
+
+  QColor cqHighlightBackground(Configuration const& config)
+  {
+    auto const& items = config.decode_highlighting().items();
+    for (auto const& item : items) {
+      if (item.type_ == DecodeHighlightingModel::Highlight::CQ && item.enabled_) {
+        if (item.background_.style() != Qt::NoBrush) {
+          return item.background_.color();
+        }
+      }
+    }
+    return QColor(0x66, 0xff, 0x66); // Standard FT8 CQ green
+  }
+
+  QColor cqHighlightForeground(Configuration const& config)
+  {
+    auto const& items = config.decode_highlighting().items();
+    for (auto const& item : items) {
+      if (item.type_ == DecodeHighlightingModel::Highlight::CQ && item.enabled_) {
+        if (item.foreground_.style() != Qt::NoBrush) {
+          return item.foreground_.color();
+        }
+      }
+    }
+    return QColor(Qt::black);
   }
 }
 
@@ -253,11 +280,13 @@ void MainWindow::renderJttyQsoLines()
       if (!time.isEmpty ()) display = time + " " + display;
     }
     
-    // CQ highlighting for QSO pane
-    bool isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ") || line.text.contains(" QRZ ");
+    // CQ highlighting for QSO pane (matching FT8 shade)
+    bool isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ") || line.text.contains(" QRZ ")
+             || line.text.startsWith("CQ ") || line.text.endsWith(" CQ");
     QTextCharFormat lineFormat = format;
     if (isCQ) {
-      lineFormat.setBackground(QBrush(QColor(0, 180, 0, 180)));  // green highlight
+      lineFormat.setBackground(QBrush(cqHighlightBackground(m_config)));
+      lineFormat.setForeground(QBrush(cqHighlightForeground(m_config)));
     }
     
     if (cursor.position() > 0) cursor.insertBlock();
@@ -337,12 +366,14 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
       cursor.movePosition(QTextCursor::End);
       if (cursor.position() > 0) cursor.insertBlock();
       
-      // CQ highlighting (green background) for conversational modes
-      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ");
+      // CQ highlighting for conversational modes (matching FT8 shade)
+      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ")
+               || update.text.startsWith("CQ ") || update.text.endsWith(" CQ");
       QTextCharFormat format;
       format.setFont(ui->decodedTextBrowser->contentFont());
       if (isCQ) {
-        format.setBackground(QBrush(QColor(0, 180, 0, 180)));  // green highlight
+        format.setBackground(QBrush(cqHighlightBackground(m_config)));
+        format.setForeground(QBrush(cqHighlightForeground(m_config)));
       }
       cursor.insertText(displayLine, format);
       ui->decodedTextBrowser->setTextCursor(cursor);
@@ -497,12 +528,14 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       cursor.movePosition(QTextCursor::End);
       if (cursor.position() > 0) cursor.insertBlock();
       
-      // CQ highlighting for All Decodes pane
-      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ");
+      // CQ highlighting for All Decodes pane (matching FT8 shade)
+      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ")
+               || update.text.startsWith("CQ ") || update.text.endsWith(" CQ");
       QTextCharFormat format;
       format.setFont(ui->decodedTextBrowser->contentFont());
       if (isCQ) {
-        format.setBackground(QBrush(QColor(0, 180, 0, 180)));  // green highlight
+        format.setBackground(QBrush(cqHighlightBackground(m_config)));
+        format.setForeground(QBrush(cqHighlightForeground(m_config)));
       }
       cursor.insertText(displayLine, format);
       ui->decodedTextBrowser->setTextCursor(cursor);

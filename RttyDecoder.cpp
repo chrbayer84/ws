@@ -122,7 +122,12 @@ void Decoder::flushChannelMessage(int channelId, ChannelDecode const& decode, bo
   }
 
   if (ch.active) {
-    QString const cleanText = ch.text.trimmed();
+    // Normalize newlines and whitespace: replace internal \r/\n with space and collapse spaces,
+    // keeping the entire transmission on one clean line like FT8
+    QString cleanText = ch.text;
+    cleanText.replace(QLatin1Char{'\r'}, QLatin1Char{' '});
+    cleanText.replace(QLatin1Char{'\n'}, QLatin1Char{' '});
+    cleanText = cleanText.simplified();
     if (cleanText.length() >= 3) {   // N6NU: one or two characters are mostly noise, shown or not
       Jtty::MessageUpdate update;
       update.messageId = ch.messageId;

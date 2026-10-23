@@ -211,13 +211,24 @@ namespace Rtty
           if ((metric_ >= squelch_ || squelch_ <= 0.0) && dcdContrast_ >= contrastGate_) {
             char c = Baudot::decode(rxData_, rxShift_, uos_);
             if (c != '\0') {
-              // Suppress duplicate CR or LF sequences
-              if ((c == '\r' && lastChar_ == '\r') || (c == '\n' && lastChar_ == '\n')) {
-                // ignore duplicate
+              // False positive newline reduction: in Baudot, CR (01000) and LF (00010)
+              // are single-mark codes with 4 space bits that easily trip on noise blips.
+              // Apply handicap: require higher confidence (1.5x metric and contrast).
+              if (c == '\r' || c == '\n') {
+                bool const strongSignal = (metric_ >= squelch_ * 1.5 || squelch_ <= 0.0)
+                                          && (dcdContrast_ >= contrastGate_ * 1.25);
+                if (strongSignal) {
+                  if ((c == '\r' && lastChar_ == '\r') || (c == '\n' && lastChar_ == '\n')) {
+                    // Suppress duplicate CR or LF sequences
+                  } else {
+                    decodedBuffer_ += c;
+                  }
+                  lastChar_ = c;
+                }
               } else {
                 decodedBuffer_ += c;
+                lastChar_ = c;
               }
-              lastChar_ = c;
             }
           }
           validChar = true;
