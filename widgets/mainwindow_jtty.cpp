@@ -1396,7 +1396,7 @@ bool MainWindow::sendJttyFunctionKey(int index)
   }
   if(macro.simplified().isEmpty()) return false;
 
-  if (m_mode == "RTTY") {
+  if (m_mode == "RTTY" || m_mode == "PSK31") {
     jtty_tx(jtty_msg_expand(macro));
     return true;
   }

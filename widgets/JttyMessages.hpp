@@ -384,6 +384,13 @@ namespace Jtty
     macroTemplate.replace (QStringLiteral ("%E"), nativeExchangeFieldText (context));
     macroTemplate.replace (QStringLiteral ("%G"), context.grid.trimmed ().toUpper ().left (4));
     macroTemplate.replace (QStringLiteral ("%R"), formatSnr (context.snr));
+
+    // Support common angle-bracket macro tags (e.g. <mycall>, <call>, <hiscall>)
+    macroTemplate.replace (QStringLiteral ("<MYCALL>"), context.myCall, Qt::CaseInsensitive);
+    macroTemplate.replace (QStringLiteral ("<CALL>"), context.hisCall, Qt::CaseInsensitive);
+    macroTemplate.replace (QStringLiteral ("<HISCALL>"), context.hisCall, Qt::CaseInsensitive);
+    macroTemplate.replace (QStringLiteral ("<MYGRID>"), context.grid.trimmed ().toUpper ().left (4), Qt::CaseInsensitive);
+    macroTemplate.replace (QStringLiteral ("<GRID>"), context.grid.trimmed ().toUpper ().left (4), Qt::CaseInsensitive);
     return macroTemplate;
   }
 

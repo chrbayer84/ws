@@ -211,9 +211,9 @@ void PskModem::rxSymbol(const cmplx& symbol) {
     metric_ = clamp(100.0 * coherence * concScale, 0.0, 100.0);
     snr_ = metric_;
 
-    // DCD tracking for preamble (0xAAAAAAAA) and carrier postamble (0x00000000)
+    // DCD tracking for preamble (0xAAAA / 0xAAAAAAAA) and carrier postamble (0x00000000)
     dcdShreg_ = (dcdShreg_ << 2) | bits;
-    if (dcdShreg_ == 0xAAAAAAAA) {
+    if ((dcdShreg_ & 0xFFFF) == 0xAAAA || dcdShreg_ == 0xAAAAAAAA) {
         dcd_ = true;
         hang_ = 32;
         qualityCos_ = 1.0;
@@ -321,9 +321,9 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         isFirstSymbol = false;
     };
 
-    // PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift)
+    // PSK31 preamble: 64 phase reversals (symbol 0 = bit 0 = 180° shift)
     // Synchronizes symbol clock recovery and engages receiver DCD (0xAAAAAAAA)
-    for (int i = 0; i < 32; i++) {
+    for (int i = 0; i < 64; i++) {
         sendSymbol(0);
     }
 
