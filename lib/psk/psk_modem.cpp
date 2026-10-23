@@ -321,9 +321,9 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         isFirstSymbol = false;
     };
 
-    // PSK31 preamble: 64 phase reversals (symbol 0 = bit 0 = 180° shift)
+    // PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift, ~1.0 s)
     // Synchronizes symbol clock recovery and engages receiver DCD (0xAAAAAAAA)
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 32; i++) {
         sendSymbol(0);
     }
 
