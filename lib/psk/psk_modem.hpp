@@ -1,6 +1,7 @@
 #ifndef PSK_MODEM_HPP
 #define PSK_MODEM_HPP
 
+#include "psk_viterbi.hpp"
 #include <vector>
 #include <complex>
 #include <string>
@@ -13,11 +14,8 @@ using cmplx = std::complex<double>;
 
 class PskModem {
 public:
-    static constexpr double BAUD = 31.25;
     static constexpr int SAMPLE_RATE_TX = 48000;
     static constexpr int SAMPLE_RATE_RX = 12000;
-    static constexpr int SAMPLES_PER_SYMBOL_TX = SAMPLE_RATE_TX / BAUD;  // 1536
-    static constexpr int SAMPLES_PER_SYMBOL_RX = SAMPLE_RATE_RX / BAUD;  // 384
     static constexpr int FIR_LENGTH = 64;
     static constexpr int SYNC_BUF_SIZE = 16;
 
@@ -26,9 +24,22 @@ public:
 
     void setFrequency(double freq);
     void setReverse(bool rev) { reverse_ = rev; }
+    bool isReverse() const { return reverse_; }
+
     void setSquelch(double s) { squelch_ = s; }
+    double squelch() const { return squelch_; }
+
     void setAfc(bool afc) { afc_ = afc; }
     bool isAfc() const { return afc_; }
+
+    void setBaud(double baud);
+    double baud() const { return baud_; }
+
+    void setQpsk(bool qpsk);
+    bool isQpsk() const { return qpsk_; }
+
+    int samplesPerSymbolRx() const { return samplesPerSymbolRx_; }
+    int samplesPerSymbolTx() const { return samplesPerSymbolTx_; }
 
     void rxInit();
     void txInit();
@@ -65,16 +76,19 @@ private:
     void buildTxShape();
     void rxSymbol(const cmplx& symbol);
     void rxBit(int bit);
-    void updateAFC();
-    void updateSyncScope();
 
     double frequency_ = 1500.0;
     double baseFrequency_ = 1500.0;
     double rxSampleRate_;
     double txSampleRate_;
+    double baud_ = 31.25;
+    bool qpsk_ = false;
     bool reverse_ = false;
     bool afc_ = true;
     double squelch_ = 5.0;
+
+    int samplesPerSymbolRx_ = 384;
+    int samplesPerSymbolTx_ = 1536;
 
     double phaseAcc_ = 0.0;
     double phaseInc_ = 0.0;
@@ -103,6 +117,9 @@ private:
     double avgAmp_ = 0.0;
     double freqError_ = 0.0;
     double snr_ = 0.0;
+
+    Viterbi viterbi_;
+    Encoder encoder_;
 
     std::string rxChars_;
     std::vector<int16_t> txBuffer_;

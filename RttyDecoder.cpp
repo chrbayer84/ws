@@ -7,9 +7,40 @@ namespace Rtty {
 Decoder::Decoder()
   : channels_(RttyMultiDemod::MAX_CHANNELS)
 {
+  qsoModem_.setUos(true);
+  qsoModem_.setAfc(true);
+  multiDemod_.setUos(true);
 }
 
 Decoder::~Decoder() = default;
+
+void Decoder::setSubmode(const QString& submode)
+{
+  double baud = 45.4545;
+  double shift = 170.0;
+  if (submode == "RTTY-50") { baud = 50.0; shift = 170.0; }
+  else if (submode == "RTTY-75N") { baud = 75.0; shift = 170.0; }
+  else if (submode == "RTTY-75W") { baud = 75.0; shift = 850.0; }
+  else if (submode == "RTTY-100") { baud = 100.0; shift = 170.0; }
+  else { baud = 45.4545; shift = 170.0; }
+
+  qsoModem_.setBaud(baud);
+  qsoModem_.setShift(shift);
+  multiDemod_.setBaud(baud);
+  multiDemod_.setShift(shift);
+}
+
+void Decoder::setReverse(bool rev)
+{
+  qsoModem_.setReverse(rev);
+  multiDemod_.setReverse(rev);
+}
+
+void Decoder::setSquelch(double s)
+{
+  qsoModem_.setSquelch(s);
+  multiDemod_.setSquelch(s);
+}
 
 void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int samplesPerSymbol)
 {
@@ -49,7 +80,6 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
 
   // Multi-Demod: search the full passband (lowFrequency to highFrequency)
   multiDemod_.setBandpass(lowFrequency, highFrequency);
-  multiDemod_.setSquelch(5.0);   // tone-pair detection threshold, dB over the noise per bin
   multiDemod_.rxProcess(samples, count);
 
   // N6NU: a message ends after idleSamples without new text, measured in samples.

@@ -12,6 +12,7 @@ set_tests_properties (test_psk_varicode PROPERTIES
 add_executable (test_psk_modem
   test_psk_modem.cpp
   ${CMAKE_SOURCE_DIR}/lib/psk/psk_varicode.cpp
+  ${CMAKE_SOURCE_DIR}/lib/psk/psk_viterbi.cpp
   ${CMAKE_SOURCE_DIR}/lib/psk/psk_modem.cpp
 )
 set_target_properties(test_psk_modem PROPERTIES AUTOMOC FALSE)

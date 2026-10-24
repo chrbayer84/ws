@@ -3637,6 +3637,99 @@ Double-click to reset to the standard 73 message</string>
            </widget>
            <widget class="QWidget" name="page_4">
             <layout class="QGridLayout" name="gridLayout_12">
+             <item row="1" column="0">
+              <layout class="QHBoxLayout" name="JTTY_horizontalLayout_submode">
+               <item>
+                <widget class="QLabel" name="label_submode">
+                 <property name="text">
+                  <string>Submode:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBoxSubmode">
+                 <property name="toolTip">
+                  <string>Select RTTY or PSK submode</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="horizontalSpacer_submode1">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>15</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="cbReverse">
+                 <property name="toolTip">
+                  <string>Reverse polarity (Mark/Space for RTTY, phase for PSK)</string>
+                 </property>
+                 <property name="text">
+                  <string>Rev</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="horizontalSpacer_submode2">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>15</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_squelch">
+                 <property name="text">
+                  <string>Squelch:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="sbSquelch">
+                 <property name="toolTip">
+                  <string>Decode squelch threshold in dB</string>
+                 </property>
+                 <property name="suffix">
+                  <string> dB</string>
+                 </property>
+                 <property name="minimum">
+                  <number>0</number>
+                 </property>
+                 <property name="maximum">
+                  <number>30</number>
+                 </property>
+                 <property name="value">
+                  <number>5</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="horizontalSpacer_submode3">
+                 <property name="orientation">
+                  <enum>Qt::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </item>
              <item row="2" column="0">
               <layout class="QHBoxLayout" name="JTTY_horizontalLayout_1">
                <item>

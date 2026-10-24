@@ -25,6 +25,33 @@ void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int
   pendingUpdates_.clear();
 }
 
+void Decoder::setSubmode(const QString& submode)
+{
+  double baud = 31.25;
+  bool qpsk = false;
+  if (submode == "PSK63") { baud = 62.5; qpsk = false; }
+  else if (submode == "PSK125") { baud = 125.0; qpsk = false; }
+  else if (submode == "PSK250") { baud = 250.0; qpsk = false; }
+  else if (submode == "QPSK31") { baud = 31.25; qpsk = true; }
+  else if (submode == "QPSK63") { baud = 62.5; qpsk = true; }
+  else if (submode == "QPSK125") { baud = 125.0; qpsk = true; }
+  else if (submode == "QPSK250") { baud = 250.0; qpsk = true; }
+  else { baud = 31.25; qpsk = false; }
+
+  multiDemod_.setBaud(baud);
+  multiDemod_.setQpsk(qpsk);
+}
+
+void Decoder::setReverse(bool rev)
+{
+  multiDemod_.setReverse(rev);
+}
+
+void Decoder::setSquelch(double s)
+{
+  multiDemod_.setSquelch(s);
+}
+
 int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
                      qint64 stopSample, int maxSteps, int lowFrequency,
                      int highFrequency, float centerFrequency, float tolerance)
@@ -37,7 +64,6 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   // Multi-Demod: search the full passband, with Channel 0 locked onto centerFrequency
   multiDemod_.setCenterFrequency(centerFrequency);
   multiDemod_.setFrequencyRange(lowFrequency, highFrequency);
-  multiDemod_.setSquelch(10.0);
   multiDemod_.rxProcess(samples, count);
 
   qint64 const now = firstSample + count;

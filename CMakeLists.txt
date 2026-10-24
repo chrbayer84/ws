@@ -367,6 +367,7 @@ set (wsjtx_CXXSRCS
   RttyDecoder.cpp
   PskDecoder.cpp
   lib/psk/psk_varicode.cpp
+  lib/psk/psk_viterbi.cpp
   lib/psk/psk_modem.cpp
   lib/psk/psk_multi_demod.cpp
   )

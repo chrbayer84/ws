@@ -128,21 +128,22 @@ Analysis of `fldigi`'s implementation (`psk.cxx`, `pskvaricode.cxx`, `pskcoeff.c
    - Squelch / DCD: Measures phase coherence $Q = |\langle e^{j 2\Delta\phi} \rangle|^2$.
 
 ### 3.3 Phased Implementation Steps
-1. **Phase 1: DSP Engine (`lib/psk/`)**:
-   - `lib/psk/psk_varicode.hpp` / `.cpp`: Clean, standalone Varicode encode and decode functions.
-   - `lib/psk/psk_modem.hpp` / `.cpp`: Single-carrier BPSK31 modem (48 kHz TX synthesis, 12 kHz RX demodulation, NCO, matched FIR filtering, symbol timing recovery, phase slicer, DCD squelch, and AFC).
-   - `lib/psk/psk_multi_demod.hpp` / `.cpp`: Panoramic multi-channel demodulator tracking 30+ simultaneous PSK31 signals across the band, parallelized using OpenMP.
-2. **Phase 2: Qt Decoder Bridge (`PskDecoder.hpp` / `.cpp`)**:
-   - Adapts `qsoModem_` and `multiDemod_` to the Qt environment, processing incremental 12 kHz audio slices and emitting `Jtty::MessageUpdate` records for UI rendering.
-3. **Phase 3: GUI & Mode Wiring**:
-   - Add `PSK31` to `Modes::Mode` in `models/Modes.hpp` / `Modes.cpp`.
-   - Add `actionPSK31` to main menu (`mainwindow.ui`).
-   - Add `"PSK31"` to `is_conversational_mode()` in `TxStartPolicy.hpp` and `mainwindow.h`.
-   - Add waterfall goalpost markers and vertical bars in `widgets/plotter.cpp` centered at $f_0 \pm 15.6\text{ Hz}$.
-   - Route audio streaming through `psk_decode()` and TX generation through `execute_psk_tx()` in `widgets/mainwindow_jtty.cpp`.
-4. **Phase 4: Unit Testing**:
-   - `test_psk_varicode`: Varicode encode/decode validation across the full ASCII set.
-   - `test_psk_modem`: End-to-end loopback test feeding 48 kHz modulated audio into the 12 kHz demodulator.
+1. **Phase 1: DSP Engine (`lib/psk/`)** [Completed]:
+   - [x] `lib/psk/psk_varicode.hpp` / `.cpp`: Clean, standalone Varicode encode and decode functions.
+   - [x] `lib/psk/psk_modem.hpp` / `.cpp`: Single-carrier BPSK31 modem (48 kHz TX synthesis, 12 kHz RX demodulation, NCO, matched FIR filtering, symbol timing recovery, phase slicer, DCD squelch, and AFC).
+   - [x] `lib/psk/psk_multi_demod.hpp` / `.cpp`: Panoramic multi-channel demodulator tracking simultaneous PSK31 signals across the band with Channel 0 QSO tracking and OpenMP parallelization.
+2. **Phase 2: Qt Decoder Bridge (`PskDecoder.hpp` / `.cpp`)** [Completed]:
+   - [x] Adapts `PskMultiDemod` to Qt, processing incremental 12 kHz audio slices and emitting non-mutating FT8-style completed decodes (`Jtty::MessageUpdate`).
+3. **Phase 3: GUI & Mode Wiring** [Completed]:
+   - [x] Add `PSK31` to `Modes::Mode` in `models/Modes.hpp` / `Modes.cpp`.
+   - [x] Add `actionPSK31` to main menu (`mainwindow.ui`).
+   - [x] Add `"PSK31"` to `is_conversational_mode()` in `TxStartPolicy.hpp` and `mainwindow.h`.
+   - [x] Add waterfall goalpost markers in `widgets/plotter.cpp` centered at $f_0 \pm 15.6\text{ Hz}$.
+   - [x] Route audio streaming through `psk_decode()` and TX generation through `execute_psk_tx()` in `widgets/mainwindow_jtty.cpp`.
+   - [x] Wire F1–F8 macros with tag expansion for PSK31.
+4. **Phase 4: Unit Testing** [Completed]:
+   - [x] `test_psk_varicode`: Varicode encode/decode validation across the full ASCII set.
+   - [x] `test_psk_modem`: End-to-end loopback test feeding 48 kHz modulated audio into the 12 kHz demodulator.
 
 ---
 
@@ -163,3 +164,28 @@ During the native Baudot RTTY implementation, several subtle DSP and architectur
 | **Status Bar Display** | `guiUpdate()` wiped conversational status bar message with spaces every 100 ms. | Live TX text does not display on the bottom status bar. | Ensure `MainWindow::guiUpdate()` guards conversational modes (`isConversationalMode()`), preventing FT8 block logic from clearing `m_currentMessage`. |
 | **Frequency Standard** | Ambiguity between Mark tone and Center frequency caused waterfall marker offset. | PSK31 center carrier must match waterfall marker center, GUI spinner, and decode logs. | Adopt Center Frequency ($f_0$) universally across GUI spinners, narrow goalpost markers ($f_0 \pm 15.6\text{ Hz}$), and decode reporting. |
 | **Squelch / Ghosting** | Raw noise triggered false decodes, generating single-character fragments. | Random phase changes in background noise easily mimic valid Varicode bit patterns. | Require vector coherence metric $Q > \text{threshold}$, confirm DCD state over multiple symbols, and discard fragments $< 3$ characters. |
+
+---
+
+## 5. Conversational Submodes & Parameter Controls Plan (RTTY & PSK)
+
+### 5.1 Objectives & Architectural Decisions
+Introduce mode-specific submode selection (flat dropdown) and streamlined parameter controls for both RTTY and PSK conversational modes:
+- **RTTY Submodes**:
+  - `RTTY-45` (45.45 baud, 170 Hz shift) [Default]
+  - `RTTY-50` (50.00 baud, 170 Hz shift)
+  - `RTTY-75N` (75.00 baud, 170 Hz shift)
+  - `RTTY-75W` (75.00 baud, 850 Hz shift)
+  - `RTTY-100` (100.00 baud, 170 Hz shift)
+- **PSK Submodes**:
+  - BPSK: `PSK31` (31.25 baud), `PSK63` (62.5 baud), `PSK125` (125 baud), `PSK250` (250 baud)
+  - QPSK (FEC with $K=5$, polynomials $0x17$/$0x19$, Viterbi): `QPSK31`, `QPSK63`, `QPSK125`, `QPSK250`
+- **Control Rules & Simplifications**:
+  - **UOS (Unshift-On-Space)**: **Hard-enabled** (always active for RTTY TX/RX; no UI toggle).
+  - **AFC (Automatic Frequency Control)**: **Hard-enabled** (always active for both RTTY and PSK; no UI toggle).
+  - **F Tol**: **Not needed** for either RTTY or PSK (hidden in conversational UI when RTTY/PSK active).
+  - **Rev (Reverse)**: User-configurable checkbox/toggle for inverting polarity (Mark/Space for RTTY, phase for PSK).
+  - **Squelch (Sql)**: User-configurable threshold in dB (0–30 dB, default 5 dB).
+
+### 5.2 Known Open Issues & Bugs
+- **QSO Pane Highlighting Bleed**: Yellow TX highlighting still sometimes bleeds over into subsequent RX messages displayed in the right-hand QSO history pane. Needs tag/format isolation when appending new incoming text.

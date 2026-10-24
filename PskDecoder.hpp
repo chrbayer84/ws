@@ -24,6 +24,10 @@ public:
 
   void begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int samplesPerSymbol = 384);
 
+  void setSubmode(const QString& submode);
+  void setReverse(bool rev);
+  void setSquelch(double s);
+
   int process(qint16 const * samples, int count, qint64 firstSample,
               qint64 stopSample, int maxSteps, int lowFrequency,
               int highFrequency, float centerFrequency, float tolerance);

@@ -600,6 +600,20 @@ void WideGraph::setMode(QString mode)                              //setMode
   ui->widePlot->update();
 }
 
+void WideGraph::setRttyShift(double shift)
+{
+  ui->widePlot->setRttyShift(shift);
+  ui->widePlot->DrawOverlay();
+  ui->widePlot->update();
+}
+
+void WideGraph::setPskBaud(double baud)
+{
+  ui->widePlot->setPskBaud(baud);
+  ui->widePlot->DrawOverlay();
+  ui->widePlot->update();
+}
+
 void WideGraph::setSubMode(int n)                                  //setSubMode
 {
   m_nSubMode=n;

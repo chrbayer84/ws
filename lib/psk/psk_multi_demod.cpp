@@ -62,6 +62,24 @@ void PskMultiDemod::setReverse(bool rev) {
     }
 }
 
+void PskMultiDemod::setBaud(double baud) {
+    if (baud > 0.0 && std::abs(baud_ - baud) > 0.01) {
+        baud_ = baud;
+        for (auto& ch : channels_) {
+            if (ch.modem) ch.modem->setBaud(baud);
+        }
+    }
+}
+
+void PskMultiDemod::setQpsk(bool qpsk) {
+    if (qpsk_ != qpsk) {
+        qpsk_ = qpsk;
+        for (auto& ch : channels_) {
+            if (ch.modem) ch.modem->setQpsk(qpsk);
+        }
+    }
+}
+
 void PskMultiDemod::reset() {
     double span = highFreq_ - lowFreq_;
     double step = span / static_cast<double>(MAX_CHANNELS > 1 ? MAX_CHANNELS - 1 : 1);
@@ -75,6 +93,8 @@ void PskMultiDemod::reset() {
         if (!channels_[0].modem) {
             channels_[0].modem = std::unique_ptr<PskModem>(new PskModem(sampleRate_));
         }
+        channels_[0].modem->setBaud(baud_);
+        channels_[0].modem->setQpsk(qpsk_);
         channels_[0].modem->setFrequency(centerFreq_);
         channels_[0].modem->setReverse(reverse_);
         channels_[0].modem->setSquelch(squelch_);
@@ -92,6 +112,8 @@ void PskMultiDemod::reset() {
         if (!channels_[i].modem) {
             channels_[i].modem = std::unique_ptr<PskModem>(new PskModem(sampleRate_));
         }
+        channels_[i].modem->setBaud(baud_);
+        channels_[i].modem->setQpsk(qpsk_);
         channels_[i].modem->setFrequency(channels_[i].frequency);
         channels_[i].modem->setReverse(reverse_);
         channels_[i].modem->setSquelch(squelch_);

@@ -69,6 +69,12 @@
 | **Oct 19, 2026** | Fixed Tune output brevity regression caused by setting RTTY `frames_per_symbol` to 1.0 (restored to 384.0 for standard ~80s max tune duration). | OpenCode |
 | **Oct 19, 2026** | Fixed RTTY startup issues: ensure audio input is started and menu action is synced by calling `restoreActiveModeMenuButton()` and `monitor(true)` after `set_mode()` on startup. | OpenCode |
 | **Oct 19, 2026** | **TX Verified**: Send Message and Tune transmissions decoded successfully by external RTTY decoder (fldigi/MMTTY), confirming correct 45.45 baud / 170 Hz shift Baudot AFSK modulation. | OpenCode |
+| **Oct 22, 2026** | Zeroed FFT filter response before computing to prevent uninitialized memory NaN corruption in dead channels. | Andreas Junge (n6nu) |
+| **Oct 22, 2026** | Replaced fixed RTTY channel grid with dynamic spectrum search (4096-point FFT, contrast gate, local mark/space scoring, block-size independent processing). Validated with 8-station recording suite at 0 and -6 dB. | Andreas Junge (n6nu) |
+| **Oct 22, 2026** | RttyDecoder: messages end by time (1.5s timeout), generation tracking on channel reuse, eliminated duplicate QSO modem near Rx frequency. | Andreas Junge (n6nu) |
+| **Oct 22, 2026** | Implemented PSK31 native support (`lib/psk/` Varicode, BPSK31 modem, multi-channel demodulator, `PskDecoder`, TX pipeline, waterfall goalposts, F1–F8 macros). | OpenCode |
+| **Oct 22, 2026** | PSK31: RTTY-style power squelch, FT8-style non-mutating decodes, and Channel 0 QSO tracking. | OpenCode |
+| **Oct 22, 2026** | Handicapped RTTY false newlines, normalized linebreaks to single lines, and matched FT8 CQ green highlight in conversational decodes. | OpenCode |
 
 ---
 
@@ -126,9 +132,10 @@ The "Send Message" button (`ui->pbSendMessage`) and keyboard shortcut (`Ctrl+K`)
    - `setup_status_bar()`, `guiUpdate()` text writes, split mode XIT calculations, and `transmit()` request parameters (`symbols_length`, `frames_per_symbol`) were updated to support RTTY.
 
 ### What is Unverified / Needs Further Work:
-- **RX (Receive) Path**: Audio input is correctly switched on when the app starts up in RTTY mode (verified by startup audio running), but **end-to-end receive demodulation and decode display have NOT been verified on live RF**. The decoder pipeline (single-channel + panoramic) works in unit tests (`test_rtty_modem` loopback), but real-world reception with actual RTTY signals needs validation.
 - **Live RF Validation**:
-  - The integration code has been thoroughly validated through unit tests and loopback logic (where Tune and Send Message have been verified to function properly internally), but a final verification on actual physical radio hardware could still be a prudent final step.
+  - The RTTY decoder has now been thoroughly verified against multi-station off-air-style audio (`rtty_8stations_0dB.wav` and `-6dB.wav`, 8 stations 250 Hz apart all decoding cleanly), and PSK31 passes automated loopback testing (`test_psk_modem`, `test_psk_varicode`). Live over-the-air QSO validation with physical transceivers remains a recommended operational check.
+- **Submode and Parameter Controls**:
+  - User controls for RTTY submodes (baud rate, shift), PSK submodes (PSK31, PSK63, PSK125), and operating parameters (Reverse USB/LSB, Squelch threshold, AFC, UOS) need to be integrated into the conversational UI.
 
 ### Known Behaviors (Not Bugs):
-- **"Input interrupted" when switching to RTTY**: When switching from another conversational mode (JTTY) to RTTY, the waterfall briefly shows "Input interrupted". This is the expected `jttyReceptionEnded()` gap marker from the previous mode ending its reception. The audio input is then restarted for RTTY. This is normal mode-switch behavior.
+- **"Input interrupted" when switching conversational modes**: When switching between conversational modes (JTTY <-> RTTY <-> PSK31), the waterfall briefly displays "Input interrupted". This is the expected gap marker from ending the prior reception session before starting the new mode's stream. This is normal behavior.

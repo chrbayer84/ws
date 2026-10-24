@@ -14581,8 +14581,7 @@ void MainWindow::transmit (double snr)
     m_dateTimeSentTx3=QDateTime::currentDateTimeUtc();
     toneSpacing=-2.0;                     //Transmit a pre-computed, filtered waveform.
     if (m_mode == "RTTY") {
-      // RTTY: 45.45 baud, 48 kHz sample rate = 1056 samples/symbol
-      double const rttySamplesPerSymbol = 1056.0;
+      double const rttySamplesPerSymbol = 48000.0 / (m_rttyBaud > 0.0 ? m_rttyBaud : 45.4545);
       double txt = jttyTxCommittedSamples() / 48000.0;
       int rttySymbols = qMax(1, int(jttyTxCommittedSamples()));
       if (m_tci_audio) {
@@ -14602,6 +14601,33 @@ void MainWindow::transmit (double snr)
         request.queue_epoch = m_jttyTxQueueEpoch;
         request.symbols_length = rttySymbols;
         request.frames_per_symbol = rttySamplesPerSymbol;
+        request.frequency_hz = ui->TxFreqSpinBox_2->value() - m_XIT;
+        request.tone_spacing = toneSpacing;
+        request.synchronize = false;
+        request.tr_period_s = txt;
+        Q_EMIT startJttyStream (request, m_soundOutput);
+      }
+    } else if (m_mode == "PSK31") {
+      double const pskSamplesPerSymbol = 48000.0 / (m_pskBaud > 0.0 ? m_pskBaud : 31.25);
+      double txt = jttyTxCommittedSamples() / 48000.0;
+      int pskSymbols = qMax(1, int(jttyTxCommittedSamples()));
+      if (m_tci_audio) {
+        Q_EMIT m_config.transceiver_modulator_start(QStringLiteral("PSK31"), pskSymbols, pskSamplesPerSymbol,
+               m_tune ? (ui->TxFreqSpinBox_2->value() - m_XIT) : (ui->TxFreqSpinBox_2->value() - m_XIT),
+               toneSpacing, false, false, snr,
+               m_tune ? m_TRperiod : txt);
+      } else if (m_tune) {
+        Q_EMIT sendMessage (QStringLiteral("PSK31"), pskSymbols,
+               pskSamplesPerSymbol, ui->TxFreqSpinBox_2->value() - m_XIT, toneSpacing, m_soundOutput,
+               m_config.audio_output_channel(), false, false, snr, m_TRperiod);
+      } else {
+        TxEvidence::TxRequest request;
+        request.mode = m_mode;
+        request.channel = m_config.audio_output_channel ();
+        request.snr_db = snr;
+        request.queue_epoch = m_jttyTxQueueEpoch;
+        request.symbols_length = pskSymbols;
+        request.frames_per_symbol = pskSamplesPerSymbol;
         request.frequency_hz = ui->TxFreqSpinBox_2->value() - m_XIT;
         request.tone_spacing = toneSpacing;
         request.synchronize = false;

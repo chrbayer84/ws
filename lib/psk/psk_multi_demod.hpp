@@ -34,6 +34,11 @@ public:
     void setCenterFrequency(double f0);
     void setSquelch(double s);
     void setReverse(bool rev);
+    void setBaud(double baud);
+    void setQpsk(bool qpsk);
+
+    double baud() const { return baud_; }
+    bool isQpsk() const { return qpsk_; }
 
     void reset();
     void rxProcess(const int16_t* samples, int count);
@@ -54,6 +59,8 @@ private:
     double centerFreq_ {1500.0};
     double squelch_;
     bool reverse_;
+    double baud_ {31.25};
+    bool qpsk_ {false};
 
     std::vector<Channel> channels_;
     std::vector<DecodeResult> pendingDecodes_;

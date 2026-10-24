@@ -42,6 +42,8 @@ public:
   void   setPeriod(double trperiod, int nsps);
   void   setTxFreq(int n);
   void   setMode(QString mode);
+  void   setRttyShift(double shift);
+  void   setPskBaud(double baud);
   void   setSubMode(int n);
   bool   flatten();
   bool   useRef();

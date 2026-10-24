@@ -772,8 +772,12 @@ void MainWindow::execute_rtty_tx(qint64 requestId, QString message, bool isFinal
   float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
 
   if (!m_rttyTxModem) {
-    m_rttyTxModem.reset(new Rtty::RttyModem());
+    m_rttyTxModem.reset(new Rtty::RttyModem(m_rttyBaud, m_rttyShift));
   }
+  m_rttyTxModem->setBaud(m_rttyBaud);
+  m_rttyTxModem->setShift(m_rttyShift);
+  m_rttyTxModem->setReverse(m_rttyReverse);
+  m_rttyTxModem->setUos(true);
 
   bool const newSession = !m_jttyTxActive;
   if (newSession) {
@@ -876,6 +880,9 @@ void MainWindow::execute_psk_tx(qint64 requestId, QString message, bool isFinal)
   if (!m_pskTxModem) {
     m_pskTxModem = std::make_unique<Psk::PskModem>();
   }
+  m_pskTxModem->setBaud(m_pskBaud);
+  m_pskTxModem->setQpsk(m_pskQpsk);
+  m_pskTxModem->setReverse(m_pskReverse);
 
   bool const newSession = !m_jttyTxActive;
   if (newSession) {
@@ -1744,6 +1751,7 @@ void MainWindow::setupJtty()
   connect(&m_jttyTxWatchdog, &QTimer::timeout, this, &MainWindow::handleJttyTxWatchdog);
 
   connect (m_wideGraph.data (), &WideGraph::jttyDecodeAgainAt2, this, &MainWindow::jttyDecodeAgainAt);
+  updateConversationalSubmodeControls();
 }
 
 // In the "MainWindow" settings group
@@ -1763,6 +1771,12 @@ void MainWindow::writeJttySettings()
   }
   m_settings->setValue("JTTY_LowerCase",ui->cbLowerCase->isChecked());
   m_settings->setValue("JTTY_IncludeTime",ui->cbIncludeTime->isChecked());
+  m_settings->setValue("RTTY_Submode", m_rttySubmode);
+  m_settings->setValue("RTTY_Reverse", m_rttyReverse);
+  m_settings->setValue("RTTY_Squelch", m_rttySquelch);
+  m_settings->setValue("PSK_Submode", m_pskSubmode);
+  m_settings->setValue("PSK_Reverse", m_pskReverse);
+  m_settings->setValue("PSK_Squelch", m_pskSquelch);
 }
 
 // In the "MainWindow" settings group
@@ -1770,6 +1784,12 @@ void MainWindow::readJttySettings()
 {
   ui->cbLowerCase->setChecked(m_settings->value("JTTY_LowerCase",false).toBool());
   ui->cbIncludeTime->setChecked(m_settings->value("JTTY_IncludeTime",false).toBool());
+  m_rttySubmode = m_settings->value("RTTY_Submode", "RTTY-45").toString();
+  m_rttyReverse = m_settings->value("RTTY_Reverse", false).toBool();
+  m_rttySquelch = m_settings->value("RTTY_Squelch", 5).toInt();
+  m_pskSubmode = m_settings->value("PSK_Submode", "PSK31").toString();
+  m_pskReverse = m_settings->value("PSK_Reverse", false).toBool();
+  m_pskSquelch = m_settings->value("PSK_Squelch", 5).toInt();
   ui->sbSerialNumber_2->setValue (m_settings->value ("SerialNumberJTTY", 1).toInt ());
   int const jttyStyleIndex = qBound(0, m_settings->value("JTTY_MessageStyle", 0).toInt(),
                                     ui->comboBoxJttyStyle->count() - 1);
@@ -1860,6 +1880,7 @@ void MainWindow::on_actionRTTY_triggered()
   ui->actionDeepestDecode->setEnabled(false);
   setup_status_bar (false);
   monitor(true);
+  updateConversationalSubmodeControls();
   statusChanged();
 }
 
@@ -1911,6 +1932,7 @@ void MainWindow::on_actionJTTY_triggered()
   ui->actionDeepestDecode->setEnabled(false);
   setup_status_bar (false);
   monitor(true);
+  updateConversationalSubmodeControls();
   statusChanged();
 }
 
@@ -1954,6 +1976,7 @@ void MainWindow::on_actionPSK31_triggered()
   ui->actionDeepestDecode->setEnabled(false);
   setup_status_bar (false);
   monitor(true);
+  updateConversationalSubmodeControls();
   statusChanged();
 }
 
@@ -2014,3 +2037,150 @@ void MainWindow::on_pbF5_clicked() {sendJttyFunctionKey(5);}
 void MainWindow::on_pbF6_clicked() {sendJttyFunctionKey(6);}
 void MainWindow::on_pbF7_clicked() {sendJttyFunctionKey(7);}
 void MainWindow::on_pbF8_clicked() {sendJttyFunctionKey(8);}
+
+void MainWindow::updateConversationalSubmodeControls()
+{
+  bool const isRtty = (m_mode == "RTTY");
+  bool const isPsk = (m_mode == "PSK31");
+  bool const showStrip = isRtty || isPsk;
+
+  if (ui->label_submode) ui->label_submode->setVisible(showStrip);
+  if (ui->comboBoxSubmode) ui->comboBoxSubmode->setVisible(showStrip);
+  if (ui->cbReverse) ui->cbReverse->setVisible(showStrip);
+  if (ui->label_squelch) ui->label_squelch->setVisible(showStrip);
+  if (ui->sbSquelch) ui->sbSquelch->setVisible(showStrip);
+
+  // F Tol is not needed for RTTY or PSK
+  if (ui->sbFtol_2) ui->sbFtol_2->setVisible(!showStrip);
+  if (ui->pbT2R_2) ui->pbT2R_2->setVisible(true);
+
+  if (!showStrip || !ui->comboBoxSubmode) return;
+
+  ui->comboBoxSubmode->blockSignals(true);
+  if (ui->cbReverse) ui->cbReverse->blockSignals(true);
+  if (ui->sbSquelch) ui->sbSquelch->blockSignals(true);
+
+  ui->comboBoxSubmode->clear();
+  if (isRtty) {
+    ui->comboBoxSubmode->addItem("RTTY-45");
+    ui->comboBoxSubmode->addItem("RTTY-50");
+    ui->comboBoxSubmode->addItem("RTTY-75N");
+    ui->comboBoxSubmode->addItem("RTTY-75W");
+    ui->comboBoxSubmode->addItem("RTTY-100");
+
+    m_rttySubmode = m_settings->value("RTTY_Submode", "RTTY-45").toString();
+    int idx = ui->comboBoxSubmode->findText(m_rttySubmode);
+    if (idx < 0) idx = 0;
+    ui->comboBoxSubmode->setCurrentIndex(idx);
+
+    m_rttyReverse = m_settings->value("RTTY_Reverse", false).toBool();
+    if (ui->cbReverse) ui->cbReverse->setChecked(m_rttyReverse);
+
+    m_rttySquelch = m_settings->value("RTTY_Squelch", 5).toInt();
+    if (ui->sbSquelch) ui->sbSquelch->setValue(m_rttySquelch);
+
+    on_comboBoxSubmode_currentIndexChanged(idx);
+    on_cbReverse_toggled(m_rttyReverse);
+    on_sbSquelch_valueChanged(m_rttySquelch);
+  } else if (isPsk) {
+    ui->comboBoxSubmode->addItem("PSK31");
+    ui->comboBoxSubmode->addItem("PSK63");
+    ui->comboBoxSubmode->addItem("PSK125");
+    ui->comboBoxSubmode->addItem("PSK250");
+    ui->comboBoxSubmode->addItem("QPSK31");
+    ui->comboBoxSubmode->addItem("QPSK63");
+    ui->comboBoxSubmode->addItem("QPSK125");
+    ui->comboBoxSubmode->addItem("QPSK250");
+
+    m_pskSubmode = m_settings->value("PSK_Submode", "PSK31").toString();
+    int idx = ui->comboBoxSubmode->findText(m_pskSubmode);
+    if (idx < 0) idx = 0;
+    ui->comboBoxSubmode->setCurrentIndex(idx);
+
+    m_pskReverse = m_settings->value("PSK_Reverse", false).toBool();
+    if (ui->cbReverse) ui->cbReverse->setChecked(m_pskReverse);
+
+    m_pskSquelch = m_settings->value("PSK_Squelch", 5).toInt();
+    if (ui->sbSquelch) ui->sbSquelch->setValue(m_pskSquelch);
+
+    on_comboBoxSubmode_currentIndexChanged(idx);
+    on_cbReverse_toggled(m_pskReverse);
+    on_sbSquelch_valueChanged(m_pskSquelch);
+  }
+
+  ui->comboBoxSubmode->blockSignals(false);
+  if (ui->cbReverse) ui->cbReverse->blockSignals(false);
+  if (ui->sbSquelch) ui->sbSquelch->blockSignals(false);
+}
+
+void MainWindow::on_comboBoxSubmode_currentIndexChanged(int index)
+{
+  if (index < 0 || !ui->comboBoxSubmode) return;
+  QString const submode = ui->comboBoxSubmode->currentText();
+  if (m_mode == "RTTY") {
+    m_rttySubmode = submode;
+    m_settings->setValue("RTTY_Submode", m_rttySubmode);
+    if (submode == "RTTY-50") { m_rttyBaud = 50.0; m_rttyShift = 170.0; }
+    else if (submode == "RTTY-75N") { m_rttyBaud = 75.0; m_rttyShift = 170.0; }
+    else if (submode == "RTTY-75W") { m_rttyBaud = 75.0; m_rttyShift = 850.0; }
+    else if (submode == "RTTY-100") { m_rttyBaud = 100.0; m_rttyShift = 170.0; }
+    else { m_rttyBaud = 45.4545; m_rttyShift = 170.0; }
+
+    m_rttyDecoder.setSubmode(submode);
+    if (m_rttyTxModem) {
+      m_rttyTxModem->setBaud(m_rttyBaud);
+      m_rttyTxModem->setShift(m_rttyShift);
+    }
+    if (m_wideGraph) {
+      m_wideGraph->setRttyShift(m_rttyShift);
+    }
+  } else if (m_mode == "PSK31") {
+    m_pskSubmode = submode;
+    m_settings->setValue("PSK_Submode", m_pskSubmode);
+    if (submode == "PSK63") { m_pskBaud = 62.5; m_pskQpsk = false; }
+    else if (submode == "PSK125") { m_pskBaud = 125.0; m_pskQpsk = false; }
+    else if (submode == "PSK250") { m_pskBaud = 250.0; m_pskQpsk = false; }
+    else if (submode == "QPSK31") { m_pskBaud = 31.25; m_pskQpsk = true; }
+    else if (submode == "QPSK63") { m_pskBaud = 62.5; m_pskQpsk = true; }
+    else if (submode == "QPSK125") { m_pskBaud = 125.0; m_pskQpsk = true; }
+    else if (submode == "QPSK250") { m_pskBaud = 250.0; m_pskQpsk = true; }
+    else { m_pskBaud = 31.25; m_pskQpsk = false; }
+
+    m_pskDecoder.setSubmode(submode);
+    if (m_pskTxModem) {
+      m_pskTxModem->setBaud(m_pskBaud);
+      m_pskTxModem->setQpsk(m_pskQpsk);
+    }
+    if (m_wideGraph) {
+      m_wideGraph->setPskBaud(m_pskBaud);
+    }
+  }
+}
+
+void MainWindow::on_cbReverse_toggled(bool checked)
+{
+  if (m_mode == "RTTY") {
+    m_rttyReverse = checked;
+    m_settings->setValue("RTTY_Reverse", m_rttyReverse);
+    m_rttyDecoder.setReverse(checked);
+    if (m_rttyTxModem) m_rttyTxModem->setReverse(checked);
+  } else if (m_mode == "PSK31") {
+    m_pskReverse = checked;
+    m_settings->setValue("PSK_Reverse", m_pskReverse);
+    m_pskDecoder.setReverse(checked);
+    if (m_pskTxModem) m_pskTxModem->setReverse(checked);
+  }
+}
+
+void MainWindow::on_sbSquelch_valueChanged(int val)
+{
+  if (m_mode == "RTTY") {
+    m_rttySquelch = val;
+    m_settings->setValue("RTTY_Squelch", m_rttySquelch);
+    m_rttyDecoder.setSquelch(static_cast<double>(val));
+  } else if (m_mode == "PSK31") {
+    m_pskSquelch = val;
+    m_settings->setValue("PSK_Squelch", m_pskSquelch);
+    m_pskDecoder.setSquelch(static_cast<double>(val));
+  }
+}

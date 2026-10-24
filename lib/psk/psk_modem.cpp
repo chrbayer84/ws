@@ -83,21 +83,49 @@ bool PskModem::FirFilter::process(const cmplx& in, cmplx& out) {
 
 PskModem::PskModem(double rxSampleRate, double txSampleRate)
     : rxSampleRate_(rxSampleRate), txSampleRate_(txSampleRate) {
-    auto fir1c = raisedcosfilt(FIRLEN);
-    std::vector<double> fir2c(gmfir2c, gmfir2c + FIRLEN + 1);
-    fir1_ = FirFilter(fir1c, SAMPLES_PER_SYMBOL_RX / SYNC_BUF_SIZE);
-    fir2_ = FirFilter(fir2c, 1);
+    buildFilters();
     buildTxShape();
     syncBuf_.resize(SYNC_BUF_SIZE, 0.0);
 }
 
 PskModem::~PskModem() = default;
 
+void PskModem::buildFilters() {
+    samplesPerSymbolRx_ = std::max(1, static_cast<int>(std::round(rxSampleRate_ / baud_)));
+    samplesPerSymbolTx_ = std::max(1, static_cast<int>(std::round(txSampleRate_ / baud_)));
+
+    int dec = std::max(1, samplesPerSymbolRx_ / SYNC_BUF_SIZE);
+    auto fir1c = raisedcosfilt(FIRLEN);
+    std::vector<double> fir2c(gmfir2c, gmfir2c + FIRLEN + 1);
+
+    fir1_ = FirFilter(fir1c, dec);
+    fir2_ = FirFilter(fir2c, 1);
+}
+
 void PskModem::buildTxShape() {
-    txShape_.resize(SAMPLES_PER_SYMBOL_TX);
-    for (int i = 0; i < SAMPLES_PER_SYMBOL_TX; i++) {
-        double phi = M_PI_ * i / SAMPLES_PER_SYMBOL_TX;
+    samplesPerSymbolTx_ = std::max(1, static_cast<int>(std::round(txSampleRate_ / baud_)));
+    txShape_.resize(samplesPerSymbolTx_);
+    for (int i = 0; i < samplesPerSymbolTx_; i++) {
+        double phi = M_PI_ * i / samplesPerSymbolTx_;
         txShape_[i] = 0.5 * (1.0 + std::cos(phi));
+    }
+}
+
+void PskModem::setBaud(double baud) {
+    if (baud > 0.0 && std::abs(baud_ - baud) > 0.01) {
+        baud_ = baud;
+        buildFilters();
+        buildTxShape();
+        rxInit();
+        txInit();
+    }
+}
+
+void PskModem::setQpsk(bool qpsk) {
+    if (qpsk_ != qpsk) {
+        qpsk_ = qpsk;
+        rxInit();
+        txInit();
     }
 }
 
@@ -117,6 +145,7 @@ void PskModem::rxInit() {
     prevSymbol_ = cmplx(1.0, 0.0);
     fir1_.reset();
     fir2_.reset();
+    viterbi_.reset();
     std::fill(syncBuf_.begin(), syncBuf_.end(), 0.0);
     bitClk_ = 0.0;
     shreg_ = 0;
@@ -137,6 +166,7 @@ void PskModem::rxInit() {
 }
 
 void PskModem::txInit() {
+    encoder_.reset();
     txBuffer_.clear();
 }
 
@@ -147,9 +177,9 @@ int PskModem::rxProcess(const int16_t* samples, int count) {
 
     for (int i = 0; i < count; i++) {
         double sample = samples[i] / 32768.0;
-        inPwr_ = decayavg(inPwr_, sample * sample, SAMPLES_PER_SYMBOL_RX);
+        inPwr_ = decayavg(inPwr_, sample * sample, samplesPerSymbolRx_);
 
-        cmplx z(sample * std::cos(phaseAcc_), sample * std::sin(phaseAcc_));
+        cmplx z(sample * std::cos(phaseAcc_), -sample * std::sin(phaseAcc_));
         phaseAcc_ += phaseInc_;
         if (phaseAcc_ >= TWOPI) phaseAcc_ -= TWOPI;
 
@@ -193,78 +223,127 @@ void PskModem::rxSymbol(const cmplx& symbol) {
 
     if (phase < 0) phase += TWOPI;
 
-    // In BPSK, bits = 0 (no phase shift) or 2 (phase reversal)
-    int bits = (((int)(phase / M_PI_ + 0.5)) & 1) << 1;
-
-    // RTTY-style power concentration: ratio of 31Hz filtered carrier to wideband input
+    // Power concentration: ratio of filtered carrier to wideband input
     double const concentration = sigPwr_ / (inPwr_ + 1e-9);
     double const concScale = clamp((concentration - 0.03) / 0.12, 0.0, 1.0);
 
-    // Symmetric vector smoothing quality metric (same decay in all directions)
-    double cval = std::cos(2.0 * phase);
-    double sval = std::sin(2.0 * phase);
+    double cval, sval;
+    if (qpsk_) {
+        // In QPSK, 4th harmonic collapses 4 constellation points (0, 90, 180, 270) to 0
+        cval = std::cos(4.0 * phase);
+        sval = std::sin(4.0 * phase);
+    } else {
+        // In BPSK, 2nd harmonic collapses 2 points (0, 180) to 0
+        cval = std::cos(2.0 * phase);
+        sval = std::sin(2.0 * phase);
+    }
     qualityCos_ = decayavg(qualityCos_, cval, 32);
     qualitySin_ = decayavg(qualitySin_, sval, 32);
     double const coherence = std::max(0.0, qualityCos_ * qualityCos_ + qualitySin_ * qualitySin_);
 
-    // Combined metric: requires both phase coherence AND power concentration (like RTTY)
+    // Combined metric
     metric_ = clamp(100.0 * coherence * concScale, 0.0, 100.0);
     snr_ = metric_;
 
-    // DCD tracking for preamble (0xAAAA / 0xAAAAAAAA) and carrier postamble (0x00000000)
-    dcdShreg_ = (dcdShreg_ << 2) | bits;
-    if ((dcdShreg_ & 0xFFFF) == 0xAAAA || dcdShreg_ == 0xAAAAAAAA) {
-        dcd_ = true;
-        hang_ = 32;
-        qualityCos_ = 1.0;
-        qualitySin_ = 0.0;
-        metric_ = 100.0;
-    } else if (dcdShreg_ == 0x00000000) {
-        if (hang_ > 0) hang_--;
-        if (hang_ <= 0) dcd_ = false;
-    } else if (metric_ >= squelch_) {
-        dcd_ = true;
-        hang_ = 16;
-    } else {
-        if (hang_ > 0) {
+    if (qpsk_) {
+        int qbits = ((int)(phase / HALF_PI + 0.5)) & 3;
+        if (!reverse_) {
+            qbits = (4 - qbits) & 3;
+        }
+
+        if (metric_ >= squelch_ || squelch_ <= 0.0) {
+            dcd_ = true;
+            hang_ = 16;
+        } else if (hang_ > 0) {
             hang_--;
             dcd_ = true;
         } else {
             dcd_ = false;
         }
-    }
 
-    // Phase AFC: track carrier within +/- 20 Hz of nominal channel frequency
-    if (afc_ && dcd_) {
-        double idealPhase = (bits == 0) ? 0.0 : M_PI_;
-        double phaseErr = phase - idealPhase;
-        if (phaseErr > M_PI_) phaseErr -= TWOPI;
-        if (phaseErr < -M_PI_) phaseErr += TWOPI;
+        // Phase AFC: track carrier within +/- 20 Hz
+        if (afc_ && dcd_) {
+            double idealPhase = std::round(phase / HALF_PI) * HALF_PI;
+            double phaseErr = phase - idealPhase;
+            if (phaseErr > M_PI_) phaseErr -= TWOPI;
+            if (phaseErr < -M_PI_) phaseErr += TWOPI;
 
-        if (std::abs(phaseErr) < HALF_PI) {
-            double ferr = (phaseErr / TWOPI) * BAUD;
-            freqError_ = decayavg(freqError_, ferr, 12);
-            double newFreq = frequency_ - freqError_ * 0.15;
-            if (std::abs(newFreq - baseFrequency_) <= 20.0) {
-                frequency_ = newFreq;
-                phaseInc_ = TWOPI * frequency_ / rxSampleRate_;
+            if (std::abs(phaseErr) < (M_PI_ / 6.0)) {
+                double ferr = (phaseErr / TWOPI) * baud_;
+                freqError_ = decayavg(freqError_, ferr, 24);
+                double newFreq = frequency_ - freqError_ * 0.03;
+                if (std::abs(newFreq - baseFrequency_) <= 20.0) {
+                    frequency_ = newFreq;
+                    phaseInc_ = TWOPI * frequency_ / rxSampleRate_;
+                }
             }
         }
-    }
 
-    // Varicode bit decode:
-    // bits == 0 -> no phase change -> Varicode bit 1
-    // bits == 2 -> 180 deg phase reversal -> Varicode bit 0
-    int bit = (bits == 0) ? 1 : 0;
-    if (reverse_) bit = 1 - bit;
-    rxBit(bit);
+        uint8_t sym[2];
+        sym[0] = (qbits & 1) ? 255 : 0;
+        sym[1] = (qbits & 2) ? 0 : 255;
+
+        int c = viterbi_.decode(sym);
+        if (c != -1) {
+            for (int b = 7; b >= 0; --b) {
+                int decodedBit = (c >> b) & 1;
+                rxBit(decodedBit);
+            }
+        }
+    } else {
+        int bits = (((int)(phase / M_PI_ + 0.5)) & 1) << 1;
+
+        dcdShreg_ = (dcdShreg_ << 2) | bits;
+        if ((dcdShreg_ & 0xFFFF) == 0xAAAA || dcdShreg_ == 0xAAAAAAAA) {
+            dcd_ = true;
+            hang_ = 32;
+            qualityCos_ = 1.0;
+            qualitySin_ = 0.0;
+            metric_ = 100.0;
+        } else if (dcdShreg_ == 0x00000000) {
+            if (hang_ > 0) hang_--;
+            if (hang_ <= 0) dcd_ = false;
+        } else if (metric_ >= squelch_) {
+            dcd_ = true;
+            hang_ = 16;
+        } else {
+            if (hang_ > 0) {
+                hang_--;
+                dcd_ = true;
+            } else {
+                dcd_ = false;
+            }
+        }
+
+        // Phase AFC: track carrier within +/- 20 Hz
+        if (afc_ && dcd_) {
+            double idealPhase = (bits == 0) ? 0.0 : M_PI_;
+            double phaseErr = phase - idealPhase;
+            if (phaseErr > M_PI_) phaseErr -= TWOPI;
+            if (phaseErr < -M_PI_) phaseErr += TWOPI;
+
+            if (std::abs(phaseErr) < HALF_PI) {
+                double ferr = (phaseErr / TWOPI) * baud_;
+                freqError_ = decayavg(freqError_, ferr, 24);
+                double newFreq = frequency_ - freqError_ * 0.05;
+                if (std::abs(newFreq - baseFrequency_) <= 20.0) {
+                    frequency_ = newFreq;
+                    phaseInc_ = TWOPI * frequency_ / rxSampleRate_;
+                }
+            }
+        }
+
+        int bit = (bits == 0) ? 1 : 0;
+        if (reverse_) bit = 1 - bit;
+        rxBit(bit);
+    }
 }
 
 void PskModem::rxBit(int bit) {
     shreg_ = (shreg_ << 1) | bit;
     if ((shreg_ & 3) == 0) {
         int c = Psk::varicode_decode(shreg_ >> 2);
-        // Only accept printable ASCII (or \r, \n) while squelch is open (like RTTY)
+        // Only accept printable ASCII (or \r, \n) while squelch is open
         if (dcd_ && (metric_ >= squelch_ || squelch_ <= 0.0)) {
             if ((c >= 32 && c <= 126) || c == '\r' || c == '\n') {
                 rxChars_.push_back(static_cast<char>(c));
@@ -282,32 +361,27 @@ std::string PskModem::takeOutput() {
 
 std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) {
     txInit();
+    encoder_.reset();
     double txPhaseInc = TWOPI * f0 / txSampleRate_;
     double txPhase = 0.0;
     cmplx prevSym(1.0, 0.0);
     bool isFirstSymbol = true;
 
-    auto sendSymbol = [&](int sym, bool isLastHalfTaper = false) {
-        // Differential BPSK: 0 = 180 deg reversal, 1 = 0 deg
-        cmplx currSym = (sym == 0) ? -prevSym : prevSym;
-
-        for (int i = 0; i < SAMPLES_PER_SYMBOL_TX; i++) {
-            // Raised cosine shaping from prevSym to currSym
-            double shapeA = txShape_[i];             // 1.0 -> 0.0
-            double shapeB = 1.0 - shapeA;           // 0.0 -> 1.0
+    auto sendSymbol = [&](const cmplx& currSym, bool isLastHalfTaper = false) {
+        for (int i = 0; i < samplesPerSymbolTx_; i++) {
+            double shapeA = txShape_[i];
+            double shapeB = 1.0 - shapeA;
             double ival = shapeA * prevSym.real() + shapeB * currSym.real();
             double qval = shapeA * prevSym.imag() + shapeB * currSym.imag();
 
-            // Smooth cosine ramp-up on the first half of the first symbol (no click)
-            if (isFirstSymbol && i < SAMPLES_PER_SYMBOL_TX / 2) {
-                double taper = 0.5 * (1.0 - std::cos(TWOPI * i / SAMPLES_PER_SYMBOL_TX));
+            if (isFirstSymbol && i < samplesPerSymbolTx_ / 2) {
+                double taper = 0.5 * (1.0 - std::cos(TWOPI * i / samplesPerSymbolTx_));
                 ival *= taper;
                 qval *= taper;
             }
 
-            // Smooth cosine ramp-down on the second half of the last postamble symbol
-            if (isLastHalfTaper && i >= SAMPLES_PER_SYMBOL_TX / 2) {
-                double taper = 0.5 * (1.0 + std::cos(TWOPI * (i - SAMPLES_PER_SYMBOL_TX / 2) / SAMPLES_PER_SYMBOL_TX));
+            if (isLastHalfTaper && i >= samplesPerSymbolTx_ / 2) {
+                double taper = 0.5 * (1.0 + std::cos(TWOPI * (i - samplesPerSymbolTx_ / 2) / samplesPerSymbolTx_));
                 ival *= taper;
                 qval *= taper;
             }
@@ -321,32 +395,45 @@ std::vector<int16_t> PskModem::modulateText(const std::string& text, double f0) 
         isFirstSymbol = false;
     };
 
-    // PSK31 preamble: 32 phase reversals (symbol 0 = bit 0 = 180° shift, ~1.0 s)
-    // Synchronizes symbol clock recovery and engages receiver DCD (0xAAAAAAAA)
-    for (int i = 0; i < 32; i++) {
-        sendSymbol(0);
+    auto sendBit = [&](int bit, bool isLastHalfTaper = false) {
+        cmplx currSym;
+        if (qpsk_) {
+            int sym = encoder_.encode(bit) & 3;
+            if (!reverse_) sym = (4 - sym) & 3;
+            double deltaPhase = (sym * 0.5 + 1.0) * M_PI_;
+            currSym = prevSym * cmplx(std::cos(deltaPhase), std::sin(deltaPhase));
+        } else {
+            int sym = reverse_ ? (1 - bit) : bit;
+            currSym = (sym == 0) ? -prevSym : prevSym;
+        }
+        sendSymbol(currSym, isLastHalfTaper);
+    };
+
+    // Preamble: 32 bit-0 symbols for BPSK, 64 for QPSK
+    int preambleCount = qpsk_ ? 64 : 32;
+    for (int i = 0; i < preambleCount; i++) {
+        sendBit(0);
     }
 
-    // 3. Text data with Varicode and "00" inter-character delimiters
+    // Text data with Varicode and "00" inter-character delimiters
     for (unsigned char uc : text) {
         const char* code = Psk::varicode_encode(uc);
         for (int i = 0; code[i]; i++) {
-            sendSymbol(code[i] - '0');
+            sendBit(code[i] - '0');
         }
         // Inter-character delimiter "00"
-        sendSymbol(0);
-        sendSymbol(0);
+        sendBit(0);
+        sendBit(0);
     }
 
-    // 4. PSK31 postamble: 32 unmodulated carrier symbols (symbol 1 = bit 1 = 0° phase)
-    // Matches fldigi standard BPSK31 postamble (dcdbits = 32)
-    for (int i = 0; i < 31; i++) {
-        sendSymbol(1);
+    // Postamble: 32 bit-1 symbols for BPSK; 80 bit-0 symbols for QPSK (to flush 60-bit Viterbi traceback)
+    int postambleCount = qpsk_ ? 80 : 32;
+    for (int i = 0; i < postambleCount - 1; i++) {
+        sendBit(qpsk_ ? 0 : 1);
     }
-    // Last postamble symbol smoothly tapers second half to zero
-    sendSymbol(1, true);
+    sendBit(qpsk_ ? 0 : 1, true);
 
-    // 5. 250ms silence pad (12,000 samples at 48 kHz) to ensure DAC flushes before PTT releases
+    // Silence pad: 250ms silence pad to ensure DAC flushes before PTT releases
     txBuffer_.insert(txBuffer_.end(), 12000, 0);
 
     return txBuffer_;

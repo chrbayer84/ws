@@ -703,8 +703,8 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   float bw=9.0*12000.0/m_nsps;               //JT9
   if(m_mode=="FT8") bw=7*12000.0/1920.0;     //FT8
   if(m_mode=="JTTY") bw=3*12000.0/384.0;     //JTTY
-  if(m_mode=="RTTY") bw=170.0;               //RTTY standard shift
-  if(m_mode=="PSK31") bw=31.25;              //PSK31 baud rate ~ bandwidth
+  if(m_mode=="RTTY") bw=(m_rttyShift > 0.0 ? m_rttyShift : 170.0);               //RTTY shift
+  if(m_mode=="PSK31") bw=(m_pskBaud > 0.0 ? m_pskBaud : 31.25);              //PSK baud rate ~ bandwidth
   if(m_mode=="FT4") bw=3*12000.0/576.0;      //FT4
   if(m_mode=="FT2") bw=3*12000.0/288.0;      //FT2
   if(m_mode.startsWith("FST4")) {
