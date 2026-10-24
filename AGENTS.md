@@ -11,7 +11,7 @@
    - Configure/build locally using:
      ```bash
      cmake -B build -DWSJT_GENERATE_DOCS=OFF -DWSJT_SKIP_MANPAGES=ON
-     cmake --build build --target wsjtx -j$(nproc)
+     cmake --build build --target wsjtx jt9 -j$(nproc)
      ctest --test-dir build -R "rtty|psk" --output-on-failure
      ```
 2. **Git Commit & Push**:
@@ -22,5 +22,5 @@
    - Both local and `raspi5-attic` share the GitHub origin.
    - After pushing locally, run:
      ```bash
-     ssh raspi5-attic "cd /home/christian/Downloads/ws-3.2.1/src/ws/build && git pull && cmake --build . --target wsjtx -j4 && ctest -R \"rtty|psk\" --output-on-failure"
+     ssh raspi5-attic "cd /home/christian/Downloads/ws-3.2.1/src/ws/build && git pull && cmake --build . --target wsjtx jt9 -j4 && ctest -R \"rtty|psk\" --output-on-failure"
      ```
