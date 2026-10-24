@@ -1744,6 +1744,8 @@ add_executable (wsjtx MACOSX_BUNDLE
   ${wsjtx_VERSION_RESOURCES}
   )
 
+add_dependencies (wsjtx jt9)
+
 if (WSJT_CREATE_WINMAIN)
   set_target_properties (wsjtx PROPERTIES WIN32_EXECUTABLE ON)
 endif (WSJT_CREATE_WINMAIN)
