@@ -614,6 +614,13 @@ void WideGraph::setPskBaud(double baud)
   ui->widePlot->update();
 }
 
+void WideGraph::setCwWpm(int wpm)
+{
+  ui->widePlot->setCwWpm(wpm);
+  ui->widePlot->DrawOverlay();
+  ui->widePlot->update();
+}
+
 void WideGraph::setSubMode(int n)                                  //setSubMode
 {
   m_nSubMode=n;

@@ -3069,7 +3069,7 @@ void MainWindow::fastSink(qint64 frames)
 
   if(isConversationalMode()) {
     m_k0 = k;
-    if (m_mode == "RTTY") rtty_decode(k); else if (m_mode == "PSK31") psk_decode(k); else jtty_decode(k);
+    if (m_mode == "RTTY") rtty_decode(k); else if (m_mode == "PSK31") psk_decode(k); else if (m_mode == "CW") cw_decode(k); else jtty_decode(k);
     if(dec_data.params.kin - k < 10240) fast_decode_done();
     return;
   }

@@ -44,6 +44,7 @@ public:
   void   setMode(QString mode);
   void   setRttyShift(double shift);
   void   setPskBaud(double baud);
+  void   setCwWpm(int wpm);
   void   setSubMode(int n);
   bool   flatten();
   bool   useRef();

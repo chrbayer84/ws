@@ -55,6 +55,7 @@ enum Mode
     RTTY,
     JTTY,
     PSK31,
+    CW,
     MODES_END_SENTINAL_AND_COUNT // this must be last
   };
   Q_ENUM (Mode)

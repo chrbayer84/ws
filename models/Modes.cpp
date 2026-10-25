@@ -29,7 +29,8 @@ namespace
     "Q65",
     "JTTY",
     "RTTY",
-    "PSK31"
+    "PSK31",
+    "CW"
   };
   std::size_t constexpr mode_names_size = sizeof (mode_names) / sizeof (mode_names[0]);
 }

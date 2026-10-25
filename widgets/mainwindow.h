@@ -55,11 +55,13 @@
 #include "Modulator/JttyTxStream.hpp"
 #include "lib/rtty/rtty_modem.hpp"
 #include "lib/psk/psk_modem.hpp"
+#include "lib/cw/cw_modem.hpp"
 #include "widgets/JttyDraftAcceptanceTracker.hpp"
 #include "widgets/JttyN1mmOutput.hpp"
 #include "widgets/JttyTransmitQueue.hpp"
 #include "RttyDecoder.hpp"
 #include "PskDecoder.hpp"
+#include "CwDecoder.hpp"
 
 #define NUM_JT4_SYMBOLS 206                //(72+31)*2, embedded sync
 #define NUM_JT65_SYMBOLS 126               //63 data + 63 sync
@@ -1236,9 +1238,11 @@ private:
 #endif
   void execute_rtty_tx(qint64 requestId, QString message, bool isFinal = true);
   void execute_psk_tx(qint64 requestId, QString message, bool isFinal = true);
+  void execute_cw_tx(qint64 requestId, QString message, bool isFinal = true);
   bool rtty_decode(int k, int istart0 = -1, int istop = -1);
   bool psk_decode(int k, int istart0 = -1, int istop = -1);
-  bool isConversationalMode() const { return m_mode == "JTTY" || m_mode == "RTTY" || m_mode == "PSK31"; }
+  bool cw_decode(int k, int istart0 = -1, int istop = -1);
+  bool isConversationalMode() const { return m_mode == "JTTY" || m_mode == "RTTY" || m_mode == "PSK31" || m_mode == "CW"; }
   void execute_jtty_tx(qint64 requestId, QString message);
   void execute_jtty_tones(qint64 requestId, QString const& message,
                           int const itone[], int nsym);
@@ -1353,6 +1357,13 @@ private:
   bool m_pskQpsk {false};
   bool m_pskReverse {false};
   int m_pskSquelch {5};
+
+  QString m_cwSubmode {"CW-20"};
+  int m_cwWpm {20};
+  bool m_cwReverse {false};
+  int m_cwSquelch {5};
+  std::unique_ptr<Cw::CwModem> m_cwTxModem;
+  Cw::Decoder m_cwDecoder;
 #ifdef WIN32
   Jtty::N1mmOutput m_mmttyJttyOutput;
 #endif

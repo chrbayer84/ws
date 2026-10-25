@@ -66,6 +66,7 @@ public:
   void setMode(QString mode);
   void setRttyShift(double shift) { m_rttyShift = shift; }
   void setPskBaud(double baud) { m_pskBaud = baud; }
+  void setCwWpm(int wpm) { m_cwWpm = wpm; }
   void setSubMode(int n);
   void SetPercent2DScreen(int percent);
   int  Fmax();
@@ -234,6 +235,7 @@ private:
   double  m_TRperiod;
   double  m_rttyShift {170.0};
   double  m_pskBaud {31.25};
+  int     m_cwWpm {20};
 
   float   m_sum[2048];
 

@@ -562,6 +562,110 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
   return anyEom;
 }
 
+bool MainWindow::cw_decode(int k, int istart0, int istop)
+{
+  (void)istop;
+  auto jttyLineDateTimeUtc = [this, k] (float tsync) -> QDateTime {
+    if (m_diskData && m_UTCdiskDateTime.isValid()) {
+      return m_UTCdiskDateTime.addMSecs(qRound64(1000.0 * tsync)).toUTC();
+    }
+    double const elapsed = qMax(0.0, double(k) / 12000.0 - double(tsync));
+    return QDateTime::currentDateTimeUtc().addMSecs(-qRound64(1000.0 * elapsed));
+  };
+  auto jttyLineDisplayDateTimeUtc = [this, &jttyLineDateTimeUtc] (float tsync) -> QDateTime {
+    if (m_diskData) {
+      return Jtty::jttyLineStartTimeUtc (m_UTCdiskDateTime, m_UTCdisk, tsync);
+    }
+    return jttyLineDateTimeUtc (tsync);
+  };
+
+  bool const newAllFreqsSession = (k <= m_jttyLastAllFreqsK);
+  m_jttyLastAllFreqsK = k;
+  if (newAllFreqsSession) {
+      flushJttyDecodeLines();
+      m_jttyAllFreqsGroupStart = QTextBlock();
+      m_jttyQsoGroupStart = QTextBlock();
+      m_jttyQsoGroupEnd = QTextBlock();
+      m_jttyQsoGroupEndPosition = -1;
+      m_jttyQsoLines.clear();
+      m_jttyAllFreqLines.clear();
+      m_bDecoded = false;
+      m_jttyLastSavedWavK0 = -1;
+
+      m_cwDecoder.begin(1, 0, 0); // Reset CW decoder session
+  }
+  float f0 = ui->RxFreqSpinBox_2->value();
+  float ftol = ui->sbFtol_2->value();
+  int nfa = m_wideGraph->nStartFreq();
+  int nfb = m_wideGraph->Fmax();
+
+  if (istart0 >= 0) {
+    m_cwDecoder.begin(1, 0, istart0);
+    int count = (istop > istart0) ? (istop - istart0) : (k - istart0);
+    if (count > 0 && istart0 + count <= k) {
+      m_cwDecoder.process(dec_data.d2 + istart0, count, istart0, istop, 1000, nfa, nfb, f0, ftol);
+    }
+  } else {
+    qint64 last_k = m_cwDecoder.nextRequiredSample();
+    if (k > last_k) {
+      int count = k - last_k;
+      m_cwDecoder.process(dec_data.d2 + last_k, count, last_k, k, 1000, nfa, nfb, f0, ftol);
+    }
+  }
+
+  QVector<Jtty::MessageUpdate> updates = m_cwDecoder.takeUpdates();
+
+  bool anyEom {false};
+  // Process CW decodes (FT8-style: completed lines append to bottom and never mutate)
+  for (auto const& update : updates) {
+    if (update.complete && update.text.trimmed().length() >= 2) {
+      QString displayLine = formatJttyDecodeLine(
+        update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
+      if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
+      if (ui->cbIncludeTime->isChecked()) {
+        QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
+        if (!time.isEmpty()) displayLine = time + " " + displayLine;
+      }
+
+      // 1. All Decodes Pane (Left Pane)
+      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      if (cursor.position() > 0) cursor.insertBlock();
+
+      // CQ highlighting for All Decodes pane (matching FT8 shade)
+      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ")
+               || update.text.startsWith("CQ ") || update.text.endsWith(" CQ");
+      QTextCharFormat format;
+      format.setFont(ui->decodedTextBrowser->contentFont());
+      if (isCQ) {
+        format.setBackground(QBrush(cqHighlightBackground(m_config)));
+        format.setForeground(QBrush(cqHighlightForeground(m_config)));
+      }
+      cursor.insertText(displayLine, format);
+      ui->decodedTextBrowser->setTextCursor(cursor);
+      ui->decodedTextBrowser->ensureCursorVisible();
+
+      write_all("Rx", formatJttyDecodeLine(update.frequency, update.snr, update.text.trimmed()),
+                jttyLineDateTimeUtc(update.sequenceStart));
+
+      // 2. QSO Pane (Right Pane): only if on the active RX frequency (+/- tolerance)
+      float const effectiveTol = qMax(ftol, 25.0f);
+      if (std::abs(update.frequency - f0) <= effectiveTol) {
+        QTextCursor qsoCursor = ui->decodedTextBrowser2->textCursor();
+        qsoCursor.movePosition(QTextCursor::End);
+        if (qsoCursor.position() > 0) qsoCursor.insertBlock();
+        qsoCursor.insertText(displayLine, format);
+        ui->decodedTextBrowser2->setTextCursor(qsoCursor);
+        ui->decodedTextBrowser2->ensureCursorVisible();
+        anyEom = true;
+      }
+      m_bDecoded = true;
+    }
+  }
+
+  return anyEom;
+}
+
 bool MainWindow::jtty_decode(int k, int istart0, int istop)
 {
   auto jttyLineDateTimeUtc = [this, k] (float tsync) -> QDateTime {
@@ -731,7 +835,7 @@ void MainWindow::jtty_tx(QString message)
 qint64 MainWindow::submitJttyText(QString message)
 {
   qint64 const requestId = ++m_jttyTxRequestId;
-  if (m_mode == "RTTY") { execute_rtty_tx(requestId, message, true); } else if (m_mode == "PSK31") { execute_psk_tx(requestId, message, true); } else { execute_jtty_tx(requestId, message); }
+  if (m_mode == "RTTY") { execute_rtty_tx(requestId, message, true); } else if (m_mode == "PSK31") { execute_psk_tx(requestId, message, true); } else if (m_mode == "CW") { execute_cw_tx(requestId, message, true); } else { execute_jtty_tx(requestId, message); }
   return requestId;
 }
 
@@ -748,6 +852,8 @@ void MainWindow::submitJttyDraft(QString message)
     execute_rtty_tx (requestId, message, true);
   } else if (m_mode == "PSK31") {
     execute_psk_tx (requestId, message, true);
+  } else if (m_mode == "CW") {
+    execute_cw_tx (requestId, message, true);
   } else {
     execute_jtty_tx (requestId, message);
   }
@@ -918,6 +1024,106 @@ void MainWindow::execute_psk_tx(qint64 requestId, QString message, bool isFinal)
 
   if (samples.size() > TxAudioQueue::defaultCapacity()) {
     LOG_WARN("PSK31 transmit FIFO capacity precheck failed; rejecting PCM enqueue");
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    return;
+  }
+
+  bool enqueued {false};
+  TxAudioQueueProgress enqueueProgress;
+
+  if (useTciAudio) {
+    QByteArray bytes(reinterpret_cast<char const *> (samples.constData ()),
+                     samples.size () * int (sizeof (qint16)));
+    qint64 const enqueueId = ++m_jttyTciEnqueueId;
+    m_pendingJttyTciMessages.append(PendingJttyTciMessage {
+      m_jttyTxQueueEpoch,
+      enqueueId,
+      requestId,
+      samples.size (),
+      message,
+      newSession
+    });
+    m_jttyTxActive = true;
+    Q_EMIT m_config.transceiver_enqueue_jtty_pcm(bytes, m_jttyTxQueueEpoch,
+                                                 enqueueId);
+    enqueued = true;
+  } else {
+    auto const result = m_jttyTxQueue->enqueue(samples, m_jttyTxQueueEpoch);
+    enqueued = result.accepted;
+    enqueueProgress = result.progress;
+  }
+
+  if (!enqueued) {
+    if (!useTciAudio) Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+    if (newSession) advanceJttyTxQueueEpoch();
+    return;
+  }
+
+  completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
+}
+
+void MainWindow::execute_cw_tx(qint64 requestId, QString message, bool isFinal)
+{
+  if (m_mode != "CW") {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::NotAvailable);
+    return;
+  }
+
+  if (ui->cbLowerCase->isChecked()) message = message.toLower();
+
+  if (isFinal && !message.isEmpty()) {
+    message += "\r\n";
+  }
+
+  if (!m_cwTxModem) {
+    m_cwTxModem = std::make_unique<Cw::CwModem>();
+  }
+  m_cwTxModem->setWpm(m_cwWpm);
+  m_cwTxModem->setReverse(m_cwReverse);
+  m_cwTxModem->setToneFrequency(600.0f);
+  m_cwTxModem->setRiseTimeMs(5.0f);
+
+  bool const newSession = !m_jttyTxActive;
+  if (newSession) {
+    advanceJttyTxQueueEpoch();
+    m_jttyTxUsesTciAudio = m_tci_audio;
+    m_cwTxModem->tx_init();
+  }
+  bool const useTciAudio = m_jttyTxUsesTciAudio;
+
+  if (newSession) {
+    if (useTciAudio) {
+      Q_EMIT m_config.transceiver_clear_jtty_pcm(m_jttyTxQueueEpoch);
+    } else {
+      m_jttyTxQueue->clear(m_jttyTxQueueEpoch);
+    }
+  }
+
+  std::vector<float> float_wave;
+  float_wave.reserve(12000 * 10); // Up to 10 seconds
+  int generated = m_cwTxModem->tx_process(float_wave.data(), float_wave.capacity(), message.toStdString());
+  float_wave.resize(generated);
+
+  std::vector<int16_t> wave;
+  wave.reserve(float_wave.size());
+  for (float val : float_wave) {
+    int16_t s = static_cast<int16_t>(std::max(-32768.0f, std::min(val * 32767.0f, 32767.0f)));
+    wave.push_back(s);
+  }
+
+  QVector<qint16> samples;
+  samples.reserve(wave.size());
+  for (int16_t val : wave) {
+    samples.append(val);
+  }
+
+  if (samples.isEmpty()) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
+    return;
+  }
+
+  if (samples.size() > TxAudioQueue::defaultCapacity()) {
+    LOG_WARN("CW transmit FIFO capacity precheck failed; rejecting PCM enqueue");
     Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
     return;
   }
@@ -2042,7 +2248,8 @@ void MainWindow::updateConversationalSubmodeControls()
 {
   bool const isRtty = (m_mode == "RTTY");
   bool const isPsk = (m_mode == "PSK31");
-  bool const showStrip = isRtty || isPsk;
+  bool const isCw = (m_mode == "CW");
+  bool const showStrip = isRtty || isPsk || isCw;
 
   if (ui->label_submode) ui->label_submode->setVisible(showStrip);
   if (ui->comboBoxSubmode) ui->comboBoxSubmode->setVisible(showStrip);
@@ -2050,7 +2257,7 @@ void MainWindow::updateConversationalSubmodeControls()
   if (ui->label_squelch) ui->label_squelch->setVisible(showStrip);
   if (ui->sbSquelch) ui->sbSquelch->setVisible(showStrip);
 
-  // F Tol is not needed for RTTY or PSK
+  // F Tol is not needed for RTTY, PSK, or CW
   if (ui->sbFtol_2) ui->sbFtol_2->setVisible(!showStrip);
   if (ui->pbT2R_2) ui->pbT2R_2->setVisible(true);
 
@@ -2106,6 +2313,30 @@ void MainWindow::updateConversationalSubmodeControls()
     on_comboBoxSubmode_currentIndexChanged(idx);
     on_cbReverse_toggled(m_pskReverse);
     on_sbSquelch_valueChanged(m_pskSquelch);
+  } else if (isCw) {
+    ui->comboBoxSubmode->addItem("CW-5");
+    ui->comboBoxSubmode->addItem("CW-10");
+    ui->comboBoxSubmode->addItem("CW-15");
+    ui->comboBoxSubmode->addItem("CW-20");
+    ui->comboBoxSubmode->addItem("CW-25");
+    ui->comboBoxSubmode->addItem("CW-30");
+    ui->comboBoxSubmode->addItem("CW-35");
+    ui->comboBoxSubmode->addItem("CW-40");
+
+    m_cwSubmode = m_settings->value("CW_Submode", "CW-20").toString();
+    int idx = ui->comboBoxSubmode->findText(m_cwSubmode);
+    if (idx < 0) idx = 3; // Default to CW-20
+    ui->comboBoxSubmode->setCurrentIndex(idx);
+
+    m_cwReverse = m_settings->value("CW_Reverse", false).toBool();
+    if (ui->cbReverse) ui->cbReverse->setChecked(m_cwReverse);
+
+    m_cwSquelch = m_settings->value("CW_Squelch", 5).toInt();
+    if (ui->sbSquelch) ui->sbSquelch->setValue(m_cwSquelch);
+
+    on_comboBoxSubmode_currentIndexChanged(idx);
+    on_cbReverse_toggled(m_cwReverse);
+    on_sbSquelch_valueChanged(m_cwSquelch);
   }
 
   ui->comboBoxSubmode->blockSignals(false);
@@ -2154,6 +2385,26 @@ void MainWindow::on_comboBoxSubmode_currentIndexChanged(int index)
     if (m_wideGraph) {
       m_wideGraph->setPskBaud(m_pskBaud);
     }
+  } else if (m_mode == "CW") {
+    m_cwSubmode = submode;
+    m_settings->setValue("CW_Submode", m_cwSubmode);
+    if (submode == "CW-5") m_cwWpm = 5;
+    else if (submode == "CW-10") m_cwWpm = 10;
+    else if (submode == "CW-15") m_cwWpm = 15;
+    else if (submode == "CW-20") m_cwWpm = 20;
+    else if (submode == "CW-25") m_cwWpm = 25;
+    else if (submode == "CW-30") m_cwWpm = 30;
+    else if (submode == "CW-35") m_cwWpm = 35;
+    else if (submode == "CW-40") m_cwWpm = 40;
+    else m_cwWpm = 20;
+
+    m_cwDecoder.setSubmode(submode);
+    if (m_cwTxModem) {
+      m_cwTxModem->setWpm(m_cwWpm);
+    }
+    if (m_wideGraph) {
+      m_wideGraph->setCwWpm(m_cwWpm);
+    }
   }
 }
 
@@ -2169,6 +2420,11 @@ void MainWindow::on_cbReverse_toggled(bool checked)
     m_settings->setValue("PSK_Reverse", m_pskReverse);
     m_pskDecoder.setReverse(checked);
     if (m_pskTxModem) m_pskTxModem->setReverse(checked);
+  } else if (m_mode == "CW") {
+    m_cwReverse = checked;
+    m_settings->setValue("CW_Reverse", m_cwReverse);
+    m_cwDecoder.setReverse(checked);
+    if (m_cwTxModem) m_cwTxModem->setReverse(checked);
   }
 }
 
@@ -2182,5 +2438,9 @@ void MainWindow::on_sbSquelch_valueChanged(int val)
     m_pskSquelch = val;
     m_settings->setValue("PSK_Squelch", m_pskSquelch);
     m_pskDecoder.setSquelch(static_cast<double>(val));
+  } else if (m_mode == "CW") {
+    m_cwSquelch = val;
+    m_settings->setValue("CW_Squelch", m_cwSquelch);
+    m_cwDecoder.setSquelch(static_cast<double>(val));
   }
 }
