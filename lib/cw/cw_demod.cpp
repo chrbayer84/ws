@@ -139,7 +139,7 @@ void CwDemod::detect_elements() {
         noise_floor_ = noise_floor_ * (1.0f - beta) + p * beta;
 
         float snr = (signal_peak_ > noise_floor_ && noise_floor_ > 0.0f)
-            ? 10.0f * std::log10f(signal_peak_ / noise_floor_) : 0.0f;
+            ? 10.0f * log10f(signal_peak_ / noise_floor_) : 0.0f;
 
         bool tone_present = snr > squelch_db_;
 
@@ -239,7 +239,7 @@ void CwDemod::decode_elements() {
         result.frequency_hz = tone_freq_hz_;
         result.wpm = wpm_;
         result.snr_db = (signal_peak_ > noise_floor_ && noise_floor_ > 0.0f)
-            ? 10.0f * std::log10f(signal_peak_ / noise_floor_) : 0.0f;
+            ? 10.0f * log10f(signal_peak_ / noise_floor_) : 0.0f;
         result.complete = false;
         results_.push_back(result);
         decode_buffer_.clear();
@@ -278,7 +278,7 @@ void CwDemod::flush_decode_buffer() {
         result.frequency_hz = tone_freq_hz_;
         result.wpm = wpm_;
         result.snr_db = (signal_peak_ > noise_floor_ && noise_floor_ > 0.0f)
-            ? 10.0f * std::log10f(signal_peak_ / noise_floor_) : 0.0f;
+            ? 10.0f * log10f(signal_peak_ / noise_floor_) : 0.0f;
         result.complete = true;
         results_.push_back(result);
         decode_buffer_.clear();
