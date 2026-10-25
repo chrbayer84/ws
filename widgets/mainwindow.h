@@ -1198,6 +1198,7 @@ private:
   Q_SLOT void on_actionJTTY_triggered();
   Q_SLOT void on_actionRTTY_triggered();
   Q_SLOT void on_actionPSK31_triggered();
+  Q_SLOT void on_actionCW_triggered();
   Q_SLOT void on_cbIncludeTime_toggled(bool b);
   Q_SLOT void on_comboBoxJttyStyle_currentIndexChanged(int index);
   Q_SLOT void on_comboBoxSubmode_currentIndexChanged(int index);

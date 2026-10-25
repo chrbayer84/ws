@@ -1020,6 +1020,7 @@ MainWindow::MainWindow(QDir const& temp_directory, bool multiple,
   ui->actionJTTY->setActionGroup(modeGroup);
   if (ui->actionRTTY) ui->actionRTTY->setActionGroup(modeGroup);
   ui->actionPSK31->setActionGroup(modeGroup);
+  if (ui->actionCW) ui->actionCW->setActionGroup(modeGroup);
   ui->actionFreqCal->setActionGroup(modeGroup);
 
   QActionGroup* saveGroup = new QActionGroup(this);
@@ -17418,6 +17419,7 @@ void MainWindow::set_mode (QString const& mode)
     else if ("JTTY" == mode) on_actionJTTY_triggered ();
     else if ("RTTY" == mode) on_actionRTTY_triggered ();
     else if ("PSK31" == mode) on_actionPSK31_triggered ();
+    else if ("CW" == mode) on_actionCW_triggered ();
     else if ("FreqCal" == mode) on_actionFreqCal_triggered ();
     else if ("MSK144" == mode) on_actionMSK144_triggered ();
     else if ("WSPR" == mode) on_actionWSPR_triggered ();
