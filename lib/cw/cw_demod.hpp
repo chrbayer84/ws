@@ -20,7 +20,6 @@ class CwDemod {
 public:
     static constexpr int SAMPLE_RATE = 12000;
     static constexpr int FFT_SIZE = 2048;
-    static constexpr int MAX_ELEMENTS = 128;
 
     CwDemod();
     ~CwDemod();
@@ -56,13 +55,14 @@ private:
         float avg_power;
     };
 
-    void mix_down(const float* samples, int count, float freq_hz);
-    void apply_matched_filter();
+    void apply_bandpass(const float* samples, int count);
+    void envelope_detect(const float* samples, int count);
     void detect_elements();
     void decode_elements();
     void update_wpm_tracking(int dot_samples, int dash_samples);
     std::string match_pattern(const std::vector<float>& weights);
     void flush_decode_buffer();
+    float compute_snr();
 
     int wpm_ = 20;
     int bandwidth_ = 100;
@@ -78,13 +78,28 @@ private:
     int two_dots_samples_ = 0;
 
     float tone_freq_hz_ = 600.0f;
-    double mix_phase_ = 0.0;
-    double mix_phase_inc_ = 0.0;
 
-    std::vector<std::complex<float>> fft_buffer_;
-    std::vector<float> filter_response_;
-    std::vector<float> power_buffer_;
-    std::vector<float> filtered_power_;
+    // Bandpass filter state (2nd order IIR)
+    struct Biquad {
+        float b0, b1, b2, a1, a2;
+        float x1, x2, y1, y2;
+        void reset() { x1 = x2 = y1 = y2 = 0.0f; }
+        float process(float in) {
+            float out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+            x2 = x1; x1 = in;
+            y2 = y1; y1 = out;
+            return out;
+        }
+    };
+    Biquad bp_filter_;
+
+    // Envelope detector state
+    float env_state_ = 0.0f;
+    float env_alpha_ = 0.0f;
+    float env_beta_ = 0.0f;
+
+    std::vector<float> filtered_samples_;
+    std::vector<float> envelope_;
 
     std::deque<Element> elements_;
     std::string decode_buffer_;

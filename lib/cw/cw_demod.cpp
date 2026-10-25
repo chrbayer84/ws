@@ -3,7 +3,6 @@
 #include <cmath>
 #include <algorithm>
 #include <numeric>
-#include <fftw3.h>
 
 namespace Cw {
 
@@ -13,10 +12,8 @@ static inline T clamp_val(T v, T lo, T hi) {
 }
 
 CwDemod::CwDemod() {
-    fft_buffer_.resize(FFT_SIZE);
-    filter_response_.resize(FFT_SIZE / 2 + 1);
-    power_buffer_.resize(FFT_SIZE);
-    filtered_power_.resize(FFT_SIZE);
+    filtered_samples_.resize(FFT_SIZE);
+    envelope_.resize(FFT_SIZE);
     rx_init();
 }
 
@@ -35,18 +32,6 @@ void CwDemod::setWpm(int wpm) {
 
 void CwDemod::setBandwidth(int hz) {
     bandwidth_ = clamp_val(hz, 20, 500);
-    float bw_norm = bandwidth_ / static_cast<float>(SAMPLE_RATE);
-    for (size_t i = 0; i < filter_response_.size(); ++i) {
-        float f = static_cast<float>(i) / FFT_SIZE;
-        float df = std::abs(f - tone_freq_hz_ / SAMPLE_RATE);
-        if (df < bw_norm * 0.5f) {
-            filter_response_[i] = 1.0f;
-        } else if (df < bw_norm) {
-            filter_response_[i] = 0.5f * (1.0f + std::cos(M_PI * (df - bw_norm * 0.5f) / (bw_norm * 0.5f)));
-        } else {
-            filter_response_[i] = 0.0f;
-        }
-    }
 }
 
 void CwDemod::setSquelch(float db) {
@@ -65,11 +50,31 @@ void CwDemod::rx_init() {
     setWpm(wpm_);
     setBandwidth(bandwidth_);
 
-    mix_phase_ = 0.0;
-    mix_phase_inc_ = 2.0 * M_PI * tone_freq_hz_ / SAMPLE_RATE;
+    // Design bandpass filter (2nd order Butterworth)
+    float fc = tone_freq_hz_ / SAMPLE_RATE;
+    float bw = bandwidth_ / static_cast<float>(SAMPLE_RATE);
+    float R = std::tan(M_PI * bw);
+    float C = std::cos(2.0f * M_PI * fc);
+    float D = 2.0f * C;
+    float beta_num = 1.0f - R;
+    float beta_den = 1.0f + R;
+    float beta = 0.5f * beta_num / beta_den;
+    float gamma = (0.5f + beta) * C;
+    float alpha = (0.5f + beta - gamma) / 0.5f;
 
-    std::fill(power_buffer_.begin(), power_buffer_.end(), 0.0f);
-    std::fill(filtered_power_.begin(), filtered_power_.end(), 0.0f);
+    bp_filter_.b0 = alpha;
+    bp_filter_.b1 = 0.0f;
+    bp_filter_.b2 = -alpha;
+    bp_filter_.a1 = -D * beta;
+    bp_filter_.a2 = 2.0f * beta;
+    bp_filter_.reset();
+
+    // Envelope detector: fast attack, slow release
+    env_alpha_ = 0.9f;  // attack
+    env_beta_ = 0.995f; // release
+
+    std::fill(filtered_samples_.begin(), filtered_samples_.end(), 0.0f);
+    std::fill(envelope_.begin(), envelope_.end(), 0.0f);
     elements_.clear();
     decode_buffer_.clear();
     results_.clear();
@@ -79,6 +84,7 @@ void CwDemod::rx_init() {
     silence_start_sample_ = 0;
     noise_floor_ = 0.0f;
     signal_peak_ = 0.0f;
+    env_state_ = 0.0f;
 
     dot_tracking_ = dot_samples_;
     dash_tracking_ = dash_samples_;
@@ -91,57 +97,31 @@ void CwDemod::reset() {
     rx_init();
 }
 
-void CwDemod::mix_down(const float* samples, int count, float center_freq_hz) {
-    float freq_offset = center_freq_hz - tone_freq_hz_;
-    double phase_inc = 2.0 * M_PI * freq_offset / SAMPLE_RATE;
-
+void CwDemod::apply_bandpass(const float* samples, int count) {
     for (int i = 0; i < count; ++i) {
-        float real = samples[i] * std::cos(mix_phase_);
-        float imag = -samples[i] * std::sin(mix_phase_);
-        fft_buffer_[i] = std::complex<float>(real, imag);
-        mix_phase_ += phase_inc;
-        if (mix_phase_ >= 2.0 * M_PI) mix_phase_ -= 2.0 * M_PI;
+        filtered_samples_[i] = bp_filter_.process(samples[i]);
     }
 }
 
-void CwDemod::apply_matched_filter() {
-    fftwf_plan plan = fftwf_plan_dft_1d(FFT_SIZE,
-        reinterpret_cast<fftwf_complex*>(fft_buffer_.data()),
-        reinterpret_cast<fftwf_complex*>(fft_buffer_.data()),
-        FFTW_FORWARD, FFTW_ESTIMATE);
-    fftwf_execute(plan);
-    fftwf_destroy_plan(plan);
-
-    for (size_t i = 0; i < filter_response_.size(); ++i) {
-        fft_buffer_[i] *= filter_response_[i];
-    }
-
-    plan = fftwf_plan_dft_1d(FFT_SIZE,
-        reinterpret_cast<fftwf_complex*>(fft_buffer_.data()),
-        reinterpret_cast<fftwf_complex*>(fft_buffer_.data()),
-        FFTW_BACKWARD, FFTW_ESTIMATE);
-    fftwf_execute(plan);
-    fftwf_destroy_plan(plan);
-
-    float scale = 1.0f / FFT_SIZE;
-    for (int i = 0; i < FFT_SIZE; ++i) {
-        float mag = std::abs(fft_buffer_[i]) * scale;
-        power_buffer_[i] = mag * mag;
+void CwDemod::envelope_detect(const float* samples, int count) {
+    for (int i = 0; i < count; ++i) {
+        float x = std::abs(samples[i]);
+        if (x > env_state_) {
+            env_state_ = env_alpha_ * env_state_ + (1.0f - env_alpha_) * x;
+        } else {
+            env_state_ = env_beta_ * env_state_ + (1.0f - env_beta_) * x;
+        }
+        envelope_[i] = env_state_;
     }
 }
 
 void CwDemod::detect_elements() {
-    const float beta = 0.001f;
+    const float snr = compute_snr();
+    const float snr_threshold = squelch_db_;
 
-    for (int i = 0; i < FFT_SIZE; ++i) {
-        float p = power_buffer_[i];
-        if (p > signal_peak_) signal_peak_ = p;
-        noise_floor_ = noise_floor_ * (1.0f - beta) + p * beta;
-
-        float snr = (signal_peak_ > noise_floor_ && noise_floor_ > 0.0f)
-            ? 10.0f * log10f(signal_peak_ / noise_floor_) : 0.0f;
-
-        bool tone_present = snr > squelch_db_;
+    for (int i = 0; i < static_cast<int>(envelope_.size()); ++i) {
+        float env = envelope_[i];
+        bool tone_present = (snr > snr_threshold) && (env > noise_floor_ * 2.0f);
 
         if (reverse_) tone_present = !tone_present;
 
@@ -150,8 +130,10 @@ void CwDemod::detect_elements() {
                 if (tone_present) {
                     state_ = RxState::IN_TONE;
                     tone_start_sample_ = samples_processed_ + i;
+                    signal_peak_ = env;
                 } else {
                     silence_start_sample_ = samples_processed_ + i;
+                    noise_floor_ = noise_floor_ * 0.999f + env * 0.001f;
                 }
                 break;
 
@@ -164,6 +146,9 @@ void CwDemod::detect_elements() {
                     state_ = RxState::AFTER_TONE;
                     silence_start_sample_ = samples_processed_ + i;
                     signal_peak_ = 0.0f;
+                    noise_floor_ = env;
+                } else {
+                    signal_peak_ = std::max(signal_peak_, env);
                 }
                 break;
 
@@ -175,17 +160,23 @@ void CwDemod::detect_elements() {
                     }
                     state_ = RxState::IN_TONE;
                     tone_start_sample_ = samples_processed_ + i;
-                    signal_peak_ = 0.0f;
+                    signal_peak_ = env;
+                } else {
+                    noise_floor_ = noise_floor_ * 0.99f + env * 0.01f;
                 }
                 break;
         }
     }
-    samples_processed_ += FFT_SIZE;
+    samples_processed_ += static_cast<int>(envelope_.size());
+}
+
+float CwDemod::compute_snr() {
+    if (signal_peak_ <= noise_floor_ || noise_floor_ <= 0.0f) return 0.0f;
+    return 10.0f * log10f(signal_peak_ / noise_floor_);
 }
 
 void CwDemod::decode_elements() {
     std::vector<float> current_char_weights;
-    std::string current_word;
 
     for (const auto& elem : elements_) {
         if (elem.is_tone) {
@@ -238,8 +229,7 @@ void CwDemod::decode_elements() {
         result.text = decode_buffer_;
         result.frequency_hz = tone_freq_hz_;
         result.wpm = wpm_;
-        result.snr_db = (signal_peak_ > noise_floor_ && noise_floor_ > 0.0f)
-            ? 10.0f * log10f(signal_peak_ / noise_floor_) : 0.0f;
+        result.snr_db = compute_snr();
         result.complete = false;
         results_.push_back(result);
         decode_buffer_.clear();
@@ -268,6 +258,11 @@ std::string CwDemod::match_pattern(const std::vector<float>& weights) {
         }
     }
 
+    // Reject poor matches (too much error)
+    if (best_diff > weights.size() * 0.5f) {
+        return "?";
+    }
+
     return best_match;
 }
 
@@ -277,23 +272,21 @@ void CwDemod::flush_decode_buffer() {
         result.text = decode_buffer_;
         result.frequency_hz = tone_freq_hz_;
         result.wpm = wpm_;
-        result.snr_db = (signal_peak_ > noise_floor_ && noise_floor_ > 0.0f)
-            ? 10.0f * log10f(signal_peak_ / noise_floor_) : 0.0f;
+        result.snr_db = compute_snr();
         result.complete = true;
         results_.push_back(result);
         decode_buffer_.clear();
     }
 }
 
-void CwDemod::rx_process(const float* samples, int count, float center_freq_hz) {
-    const int hop_size = FFT_SIZE / 2;
+void CwDemod::rx_process(const float* samples, int count, float /*center_freq_hz*/) {
+    const int chunk_size = 512;
 
-    for (int offset = 0; offset < count; offset += hop_size) {
-        int chunk = std::min(hop_size, count - offset);
+    for (int offset = 0; offset < count; offset += chunk_size) {
+        int chunk = std::min(chunk_size, count - offset);
 
-        std::fill(fft_buffer_.begin(), fft_buffer_.end(), std::complex<float>(0, 0));
-        mix_down(samples + offset, chunk, center_freq_hz);
-        apply_matched_filter();
+        apply_bandpass(samples + offset, chunk);
+        envelope_detect(filtered_samples_.data(), chunk);
         detect_elements();
 
         if (elements_.size() > 10) {

@@ -29,13 +29,10 @@ void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int
 }
 
 void Decoder::setSubmode(const QString& submode) {
-    if (submode.startsWith("CW-")) {
-        bool ok = false;
-        int wpm = submode.mid(3).toInt(&ok);
-        if (ok && wpm >= 5 && wpm <= 50) {
-            multiDemod_.setWpm(wpm);
-        }
-    }
+    // CW submode only affects TX WPM. RX is always adaptive.
+    (void)submode;
+    // Ensure adaptive is always enabled for RX
+    multiDemod_.setAdaptive(true);
 }
 
 void Decoder::setReverse(bool rev) {

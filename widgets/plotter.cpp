@@ -705,6 +705,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   if(m_mode=="JTTY") bw=3*12000.0/384.0;     //JTTY
   if(m_mode=="RTTY") bw=(m_rttyShift > 0.0 ? m_rttyShift : 170.0);               //RTTY shift
   if(m_mode=="PSK31") bw=(m_pskBaud > 0.0 ? m_pskBaud : 31.25);              //PSK baud rate ~ bandwidth
+  if(m_mode=="CW") bw=(m_cwWpm > 0 ? std::max(50.0, 2.0 * m_cwWpm) : 100.0); // CW filter BW ~ 2x WPM, min 50 Hz
   if(m_mode=="FT4") bw=3*12000.0/576.0;      //FT4
   if(m_mode=="FT2") bw=3*12000.0/288.0;      //FT2
   if(m_mode.startsWith("FST4")) {
@@ -797,7 +798,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   int yTxTop=12;
   int yRxBottom=yTxTop + 2*yh + 4;
   if(m_mode.startsWith("FT") or m_mode.startsWith("JT") or m_mode=="Q65"
-      or m_mode=="RTTY" or m_mode=="PSK31" or m_mode.startsWith("FST4")) {
+      or m_mode=="RTTY" or m_mode=="PSK31" or m_mode=="CW" or m_mode.startsWith("FST4")) {
 
     if(m_mode=="FST4" and !m_bSingleDecode) {
       x1=XfromFreq(m_nfa);
@@ -808,7 +809,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
       painter0.drawLine(x2,25,x2-5,20);
     }
 
-    if(m_mode=="RTTY" or m_mode=="PSK31") {
+    if(m_mode=="RTTY" or m_mode=="PSK31" or m_mode=="CW") {
       painter0.setPen(penGreen);
       int x_left = XfromFreq(m_rxFreq - 0.5 * bw);
       int x_right = XfromFreq(m_rxFreq + 0.5 * bw);
@@ -867,7 +868,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
     overPainter.fillRect(0, 0, m_Size.width(), m_h, Qt::transparent);
   }
 
-  if(m_mode=="RTTY" or m_mode=="PSK31") {
+  if(m_mode=="RTTY" or m_mode=="PSK31" or m_mode=="CW") {
     x1=XfromFreq(m_rxFreq - 0.5*bw);
     x2=XfromFreq(m_rxFreq + 0.5*bw);
     if (m_bars) {
@@ -888,7 +889,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red bars
-  if(m_mode=="RTTY" or m_mode=="PSK31") {
+  if(m_mode=="RTTY" or m_mode=="PSK31" or m_mode=="CW") {
     x1=XfromFreq(m_txFreq - 0.5*bw);
     x2=XfromFreq(m_txFreq + 0.5*bw);
     if (m_bars) {
@@ -910,7 +911,7 @@ void CPlotter::DrawOverlay()                   //DrawOverlay()
   }
 
   // red goal post
-  if(m_mode=="RTTY" or m_mode=="PSK31") {
+  if(m_mode=="RTTY" or m_mode=="PSK31" or m_mode=="CW") {
     painter0.setPen(penRed);
     x1=XfromFreq(m_txFreq - 0.5*bw);
     x2=XfromFreq(m_txFreq + 0.5*bw);
