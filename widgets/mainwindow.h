@@ -223,6 +223,7 @@ private slots:
   void on_q65Button_clicked();
   void on_jt65Button_clicked();
   void on_echoButton_clicked();
+  void on_cwButton_clicked();
   void on_pb15A_clicked();
   void on_pb15C_clicked();
   void on_pb30B_clicked();

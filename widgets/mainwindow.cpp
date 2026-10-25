@@ -17619,6 +17619,11 @@ void MainWindow::on_echoButton_clicked()
     on_actionEcho_triggered();
 }
 
+void MainWindow::on_cwButton_clicked()
+{
+    on_actionCW_triggered();
+}
+
 void MainWindow::sfox_tx() {
   auto fname{QDir::toNativeSeparators(m_config.writeable_data_dir().absoluteFilePath("sfox_1.dat")).toLocal8Bit()};
   QString ckey{"OTP:000000"};

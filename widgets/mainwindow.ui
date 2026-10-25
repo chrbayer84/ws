@@ -5221,24 +5221,46 @@ Yellow when too low</string>
                 <string>JT65</string>
                </property>
               </widget>
-             </item>
-             <item>
-              <widget class="QPushButton" name="echoButton">
-               <property name="minimumSize">
-                <size>
-                 <width>32</width>
-                 <height>0</height>
-                </size>
-               </property>
-               <property name="toolTip">
-                <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Switch to Echo mode&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-               </property>
-               <property name="text">
-                <string>Echo</string>
-               </property>
-              </widget>
-             </item>
-            </layout>
+</item>
+              <item>
+               <widget class="QPushButton" name="echoButton">
+                <property name="minimumSize">
+                 <size>
+                  <width>32</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 &lt;string&gt;&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Switch to Echo mode&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;&lt;/string&gt;
+                </property>
+                <property name="text">
+                 <string>Echo</string>
+                </property>
+               </widget>
+              </item>
+<item>
+                <widget class="QPushButton" name="cwButton">
+                <property name="minimumSize">
+                 <size>
+                  <width>32</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="checkable">
+                 <bool>true</bool>
+                </property>
+                <property name="focusPolicy">
+                 <enum>Qt::StrongFocus</enum>
+                </property>
+                <property name="toolTip">
+                 <string>Switch to CW mode</string>
+                </property>
+                <property name="text">
+                 <string>CW</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
            </item>
            <item row="0" column="0" colspan="2">
             <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,0">
