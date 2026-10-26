@@ -35,6 +35,7 @@ namespace Jtty
       QVector<TransmitSegment> segments;
       int committed {0};
 
+      Request() = default;
       Request(qint64 id_, QVector<TransmitSegment> segments_, int committed_ = 0)
         : id(id_), segments(std::move(segments_)), committed(committed_) {}
     };
