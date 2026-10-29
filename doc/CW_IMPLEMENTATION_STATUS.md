@@ -32,10 +32,14 @@
 
 3. **Prosign handling**: fldigi has extensive prosign table (SK, AR, KN, AS, etc.). Currently decoder supports SK, AR, KN via `cw_morse_table.hpp`. Decide if full prosign display needed or ASCII mapping sufficient.
 
-4. **Adaptive WPM vs fixed submode**: If user selects "CW-20" but sends at 15 WPM, should decoder:
-   - Track and adapt (fldigi default)
-   - Stay fixed at 20 WPM (simpler, matches submode semantics)
-   - **Decision**: Default fixed; add "Auto WPM" checkbox if needed later
+4. **Adaptive WPM vs fixed submode**: Since adaptive WPM is always enabled for RX (no UI control to disable it), the decoder tracks the incoming signal's actual WPM regardless of the submode selection. The submode WPM preset (CW-5 through CW-40, default 20) is therefore **ignored for decoding** but is still set for:
+   - **TX transmission WPM**: `m_cwTxModem->setWpm(m_cwWpm)` uses the selected submode WPM
+   - **Waterfall bandwidth display**: `m_wideGraph->setCwWpm(m_cwWpm)` uses the selected submode WPM
+   - **Operator reference**: The submode dropdown visually indicates the selected WPM preset
+   
+   If user selects "CW-20" but the signal is at 15 WPM, the decoder will adapt to 15 WPM rather than staying fixed at 20 WPM. This is the default and expected behavior - adaptive WPM continuously estimates dot/dah length from the received signal.
+
+   **Note**: Previously (pre-adaptive design) the submode WPM would fix the decoder. Now with adaptive always ON, the submode is a reference/initial value only, not a constraint on decoding.
 
 5. **TX shaping**: fldigi uses cosine-squared edges with configurable rise time. wsjtx port matches this (default 5 ms rise time in `CwModem`).
 

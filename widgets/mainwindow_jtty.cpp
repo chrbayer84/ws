@@ -2360,6 +2360,8 @@ void MainWindow::updateConversationalSubmodeControls()
     on_cbReverse_toggled(m_pskReverse);
     on_sbSquelch_valueChanged(m_pskSquelch);
   } else if (isCw) {
+    ui->comboBoxSubmode->addItem("CW (fldigi)");
+    ui->comboBoxSubmode->addItem("CW (gridtracker)");
     ui->comboBoxSubmode->addItem("CW-5");
     ui->comboBoxSubmode->addItem("CW-10");
     ui->comboBoxSubmode->addItem("CW-15");
@@ -2371,7 +2373,7 @@ void MainWindow::updateConversationalSubmodeControls()
 
     m_cwSubmode = m_settings->value("CW_Submode", "CW-20").toString();
     int idx = ui->comboBoxSubmode->findText(m_cwSubmode);
-    if (idx < 0) idx = 3; // Default to CW-20
+    if (idx < 0) idx = 2; // Default to CW-20 (skip the 2 decoder items)
     ui->comboBoxSubmode->setCurrentIndex(idx);
 
     m_cwReverse = m_settings->value("CW_Reverse", false).toBool();
@@ -2432,7 +2434,18 @@ void MainWindow::on_comboBoxSubmode_currentIndexChanged(int index)
       m_wideGraph->setPskBaud(m_pskBaud);
     }
   } else if (m_mode == "CW") {
-    m_cwSubmode = submode;
+    // Handle decoder type selection (indices 0 and 1)
+    if (index == 0) {
+      // CW (fldigi) selected
+      m_cwDecoder.setDecoderType(Cw::DecoderType::Fldigi);
+      m_cwSubmode = "CW-20";
+    } else if (index == 1) {
+      // CW (gridtracker) selected
+      m_cwDecoder.setDecoderType(Cw::DecoderType::Gridtracker);
+      m_cwSubmode = "CW-20";
+    } else {
+      m_cwSubmode = submode;
+    }
     m_settings->setValue("CW_Submode", m_cwSubmode);
     if (submode == "CW-5") m_cwWpm = 5;
     else if (submode == "CW-10") m_cwWpm = 10;
@@ -2444,7 +2457,7 @@ void MainWindow::on_comboBoxSubmode_currentIndexChanged(int index)
     else if (submode == "CW-40") m_cwWpm = 40;
     else m_cwWpm = 20;
 
-    m_cwDecoder.setSubmode(submode);
+    m_cwDecoder.setSubmode(m_cwSubmode);
     if (m_cwTxModem) {
       m_cwTxModem->setWpm(m_cwWpm);
     }
