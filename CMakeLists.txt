@@ -1772,6 +1772,7 @@ set_target_properties (wsjtx PROPERTIES
 # target_link_libraries (wsjtx ...) references below need no churn.
 set_target_properties (wsjtx PROPERTIES OUTPUT_NAME ws)
 target_include_directories (wsjtx PRIVATE ${FFTW3_INCLUDE_DIRS})
+target_include_directories(wsjtx PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/lib/gridtracker_cw)
 if ((NOT ${OPENMP_FOUND}) OR APPLE)
   target_link_libraries (wsjtx wsjt_fort)
 else ()

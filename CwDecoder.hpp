@@ -2,12 +2,18 @@
 #define CW_DECODER_HPP
 
 #include "lib/cw/cw_multi_demod.hpp"
+#include "lib/gridtracker_cw/cw_gtdemod.hpp"
 #include "widgets/JttyMessages.hpp"
 #include <QVector>
 #include <QString>
 #include <QDateTime>
 
 namespace Cw {
+
+enum class DecoderType {
+    Fldigi,
+    Gridtracker
+};
 
 class Decoder
 {
@@ -37,12 +43,18 @@ public:
 
     QVector<Jtty::MessageUpdate> takeUpdates();
 
+    DecoderType decoderType() const { return decoder_type_; }
+    void setDecoderType(DecoderType type) { decoder_type_ = type; reinit(); }
+
 private:
+    DecoderType decoder_type_ = DecoderType::Fldigi;
+
     qint64 sessionId_ {0};
     qint64 gridOrigin_ {0};
     qint64 nextRequiredSample_ {0};
 
-    CwMultiDemod multiDemod_;
+    CwMultiDemod multiDemod_fldigi_;
+    std::unique_ptr<CwGtDemod> multiDemod_gt_;
 
     struct ChannelState {
         qint64 messageId {0};
@@ -61,6 +73,8 @@ private:
 
     qint64 generateMessageId(int channelId);
     void flushChannelMessage(int channelId, const CwMultiDemodResult& decode, bool complete);
+
+    void reinit();
 };
 
 } // namespace Cw

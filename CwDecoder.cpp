@@ -4,43 +4,65 @@
 
 namespace Cw {
 
-template <typename T>
-static inline T clamp_val(T v, T lo, T hi) {
-    return std::max(lo, std::min(v, hi));
+Decoder::Decoder() {
+    multiDemod_gt_ = std::make_unique<CwGtDemod>();
 }
-
-Decoder::Decoder() = default;
 
 Decoder::~Decoder() = default;
 
-void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int) {
+void Decoder::reinit() {
+    if (decoder_type_ == DecoderType::Fldigi) {
+        multiDemod_fldigi_.init(16, 300.0f, 50.0f);
+        multiDemod_fldigi_.setWpm(20);
+        multiDemod_fldigi_.setBandwidth(100);
+        multiDemod_fldigi_.setSquelch(5.0);
+        multiDemod_fldigi_.setAdaptive(true);
+        multiDemod_fldigi_.setReverse(false);
+    } else {
+        // Gridtracker decoder
+        multiDemod_gt_->setWpm(20);
+        multiDemod_gt_->setBandwidth(100);
+        multiDemod_gt_->setSquelch(5.0f);
+        multiDemod_gt_->setAdaptive(true);
+        multiDemod_gt_->setReverse(false);
+    }
+}
+
+void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int samplesPerSymbol) {
     sessionId_ = sessionId;
     gridOrigin_ = gridOrigin;
     nextRequiredSample_ = firstSearch;
 
-    multiDemod_.init(16, 300.0f, 50.0f);
-    multiDemod_.setWpm(20);
-    multiDemod_.setBandwidth(100);
-    multiDemod_.setSquelch(5.0);
-    multiDemod_.setAdaptive(true);
+    reinit();
 
     channels_.assign(16, ChannelState());
     pendingUpdates_.clear();
 }
 
 void Decoder::setSubmode(const QString& submode) {
-    // CW submode only affects TX WPM. RX is always adaptive.
     (void)submode;
     // Ensure adaptive is always enabled for RX
-    multiDemod_.setAdaptive(true);
+    if (decoder_type_ == DecoderType::Fldigi) {
+        multiDemod_fldigi_.setAdaptive(true);
+    } else {
+        multiDemod_gt_->setAdaptive(true);
+    }
 }
 
 void Decoder::setReverse(bool rev) {
-    multiDemod_.setReverse(rev);
+    if (decoder_type_ == DecoderType::Fldigi) {
+        multiDemod_fldigi_.setReverse(rev);
+    } else {
+        multiDemod_gt_->setReverse(rev);
+    }
 }
 
 void Decoder::setSquelch(double s) {
-    multiDemod_.setSquelch(static_cast<float>(clamp_val(s, 0.0, 30.0)));
+    if (decoder_type_ == DecoderType::Fldigi) {
+        multiDemod_fldigi_.setSquelch(static_cast<float>(s));
+    } else {
+        multiDemod_gt_->setSquelch(static_cast<float>(s));
+    }
 }
 
 int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
@@ -53,11 +75,19 @@ int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
         float_samples[i] = samples[i] / 32768.0f;
     }
 
-    multiDemod_.process(float_samples.data(), count);
+    // Process with the selected decoder
+    if (decoder_type_ == DecoderType::Fldigi) {
+        multiDemod_fldigi_.process(float_samples.data(), count);
+    } else {
+        multiDemod_gt_->rx_process(float_samples.data(), count, 600.0f);
+    }
 
     nextRequiredSample_ = firstSample + count;
 
-    auto results = multiDemod_.get_results();
+    auto results = (decoder_type_ == DecoderType::Fldigi)
+                       ? multiDemod_fldigi_.get_results()
+                       : multiDemod_gt_->get_results();
+
     double elapsed_seconds = static_cast<double>(firstSample - gridOrigin_) / 12000.0;
 
     for (const auto& r : results) {

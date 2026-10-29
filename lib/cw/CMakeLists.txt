@@ -7,6 +7,7 @@ set(CW_SOURCES
     cw_demod.cpp
     cw_multi_demod.cpp
     cw_morse_table.cpp
+    cw_gtdemod.cpp
 )
 
 add_library(cw_modem STATIC ${CW_SOURCES})
