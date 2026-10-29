@@ -5,7 +5,7 @@
 namespace Cw {
 
 Decoder::Decoder() {
-    multiDemod_gt_ = std::make_unique<CwGtDemod>();
+    multiDemod_gt_.reset(new CwGtDemod());
 }
 
 Decoder::~Decoder() = default;
@@ -29,6 +29,7 @@ void Decoder::reinit() {
 }
 
 void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int samplesPerSymbol) {
+    (void)samplesPerSymbol;
     sessionId_ = sessionId;
     gridOrigin_ = gridOrigin;
     nextRequiredSample_ = firstSearch;
@@ -84,37 +85,73 @@ int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
 
     nextRequiredSample_ = firstSample + count;
 
-    auto results = (decoder_type_ == DecoderType::Fldigi)
-                       ? multiDemod_fldigi_.get_results()
-                       : multiDemod_gt_->get_results();
-
     double elapsed_seconds = static_cast<double>(firstSample - gridOrigin_) / 12000.0;
 
-    for (const auto& r : results) {
-        if (r.channel < 0 || r.channel >= static_cast<int>(channels_.size())) continue;
+    if (decoder_type_ == DecoderType::Fldigi) {
+        auto results = multiDemod_fldigi_.get_results();
+        for (const auto& r : results) {
+            if (r.channel < 0 || r.channel >= static_cast<int>(channels_.size())) continue;
 
-        ChannelState& ch = channels_[r.channel];
+            ChannelState& ch = channels_[r.channel];
 
-        if (!ch.active) {
-            ch.active = true;
-            ch.messageId = generateMessageId(r.channel);
-            ch.startSeconds = elapsed_seconds;
-            ch.frequency = r.frequency_hz;
-            ch.text = QString::fromStdString(r.text);
-            ch.snr = r.snr_db;
-            ch.wpm = r.wpm;
-            ch.lastTextSample = firstSample;
-            ch.idleFrames = 0;
-        } else {
-            ch.text += QString::fromStdString(r.text);
-            ch.snr = r.snr_db;
-            ch.wpm = r.wpm;
-            ch.lastTextSample = firstSample;
-            ch.idleFrames = 0;
+            if (!ch.active) {
+                ch.active = true;
+                ch.messageId = generateMessageId(r.channel);
+                ch.startSeconds = elapsed_seconds;
+                ch.frequency = r.frequency_hz;
+                ch.text = QString::fromStdString(r.text);
+                ch.snr = r.snr_db;
+                ch.wpm = r.wpm;
+                ch.lastTextSample = firstSample;
+                ch.idleFrames = 0;
+            } else {
+                ch.text += QString::fromStdString(r.text);
+                ch.snr = r.snr_db;
+                ch.wpm = r.wpm;
+                ch.lastTextSample = firstSample;
+                ch.idleFrames = 0;
+            }
+
+            if (r.complete) {
+                flushChannelMessage(r.channel, r, true);
+            }
         }
+    } else {
+        auto results = multiDemod_gt_->get_results();
+        for (const auto& r : results) {
+            int channel = r.channel;
+            if (channel < 0 || channel >= static_cast<int>(channels_.size())) continue;
 
-        if (r.complete) {
-            flushChannelMessage(r.channel, r, true);
+            ChannelState& ch = channels_[channel];
+
+            if (!ch.active) {
+                ch.active = true;
+                ch.messageId = generateMessageId(channel);
+                ch.startSeconds = elapsed_seconds;
+                ch.frequency = r.frequency_hz;
+                ch.text = QString::fromStdString(r.text);
+                ch.snr = r.snr_db;
+                ch.wpm = r.wpm;
+                ch.lastTextSample = firstSample;
+                ch.idleFrames = 0;
+            } else {
+                ch.text += QString::fromStdString(r.text);
+                ch.snr = r.snr_db;
+                ch.wpm = r.wpm;
+                ch.lastTextSample = firstSample;
+                ch.idleFrames = 0;
+            }
+
+            if (r.complete) {
+                Cw::CwMultiDemodResult mdr;
+                mdr.text = r.text;
+                mdr.frequency_hz = r.frequency_hz;
+                mdr.snr_db = r.snr_db;
+                mdr.wpm = r.wpm;
+                mdr.channel = r.channel;
+                mdr.complete = r.complete;
+                flushChannelMessage(channel, mdr, true);
+            }
         }
     }
 

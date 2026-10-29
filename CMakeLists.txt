@@ -1792,7 +1792,7 @@ else ()
       )
   endif ()
 endif ()
-target_link_libraries (wsjtx Qt5::SerialPort wsjt_cxx wsjt_qt wsjt_qtmm ${FFTW3_LIBRARIES} ${LIBM_LIBRARIES})
+target_link_libraries (wsjtx Qt5::SerialPort wsjt_cxx wsjt_qt wsjt_qtmm ${FFTW3_LIBRARIES} ${LIBM_LIBRARIES} cw_modem)
 
 # make a library for WSJT-X UDP servers
 # add_library (wsjtx_udp SHARED ${UDP_library_CXXSRCS})
@@ -2100,6 +2100,7 @@ if (NOT is_debug_build)
   # sub-directories to ensure that all executables are in-place before
   # any fixup is done
   add_subdirectory (bundle_fixup)
+add_subdirectory (lib/cw)
 endif ()
 
 

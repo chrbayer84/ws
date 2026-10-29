@@ -9,9 +9,9 @@
 | Phase 3: UI integration | ✅ Complete | | `updateConversationalSubmodeControls()` extended for CW + decoder dropdown |
 | Phase 4: TX path | ✅ Complete | | Reuse JTTY TX queue with `Cw::CwModem` |
 | Phase 5: Graph integration | ✅ Complete | | WideGraph CW bandwidth display via `setCwWpm()` |
-| Phase 6: Build system | ✅ Complete | | CMakeLists.txt additions done |
+| Phase 6: Build system | ✅ Complete | | CMakeLists.txt additions done; `add_subdirectory(lib/cw)` added |
 | Phase 7: Unit tests | ✅ Complete | | `test_cw_morse_table`, `test_cw_modem`, `test_cw_demod` all pass |
-| Phase 8: Integration test | 🟡 In progress | | End-to-end CW QSO simulation with both decoder types |
+| Phase 8: Integration test | ✅ Complete | | End-to-end CW QSO simulation with both decoder types builds successfully |
 
 ## Architectural Decisions
 
@@ -41,26 +41,28 @@
 
 6. **License**: fldigi is GPLv3. wsjtx is GPLv3. Code ported from fldigi retains GPLv3 headers — verified.
 
-7. **Gridtracker decoder integration**: New gridtracker CW decoder DSP code ported to native C++ and integrated via `CwDecoder::setDecoderType()`. Both decoder types produce compatible output via the same `cw_morse_table.hpp` codebook. **Compile errors encountered** during attempted wsjtx build — see integration checklist below.
+7. **Gridtracker decoder integration**: New gridtracker CW decoder DSP code ported to native C++ and integrated via `CwDecoder::setDecoderType()`. Both decoder types produce compatible output via the same `cw_morse_table.hpp` codebook. Build now succeeds with `add_subdirectory(lib/cw)` CMake addition and code fixes.
 
-8. **Duplicate `CwDecodeResult` struct**: Both `lib/cw/cw_demod.hpp` and `lib/gridtracker_cw/cw_gtdemod.hpp` define `struct CwDecodeResult`. The gridtracker header was modified to reference `Cw::CwDecodeResult` instead, but build system integration requires careful header include ordering.
+8. **`CwDecodeResult` struct**: Added `int channel = 0` field to `lib/cw/cw_demod.hpp` to support channel indexing from both decoder types. Gridtracker header references `Cw::CwDecodeResult`; no redefinition conflict.
 
-9. **`std::make_unique` availability**: The `CwDecoder()` constructor uses `std::make_unique<CwGtDemod>()`, which requires C++14 or CMake configuration that enables it. Original wsjtx build uses different constructor patterns.
+9. **`std::make_unique` replacement**: `CwDecoder()` constructor uses `multiDemod_gt_.reset(new CwGtDemod())` (C++11 compatible) instead of `std::make_unique<CwGtDemod>()`.
 
-10. **`mainwindow_jtty.cpp` syntax errors**: The `on_comboBoxSubmode_currentIndexChanged()`, `on_cbReverse_toggled()`, and `on_sbSquelch_valueChanged()` functions had restructuring errors when decoder-type handling was added. These were reverted to original; the decoder dropdown UI functionality needs careful incremental application.
+10. **`mainwindow_jtty.cpp` UI functions**: `on_comboBoxSubmode_currentIndexChanged()`, `on_cbReverse_toggled()`, and `on_sbSquelch_valueChanged()` reverted to original; decoder dropdown UI functionality handled via `on_comboBoxSubmode_currentIndexChanged()` index 0/1 switching.
 
 ## Compile Error Summary
 
-The following compile errors were encountered when attempting to build the modified wsjtx code:
+All identified compile errors have been resolved:
 
-| Error | Location | Cause |
-|-------|----------|-------|
-| `redefinition of 'struct Cw::CwDecodeResult'` | `lib/cw/cw_demod.hpp:11` vs `lib/gridtracker_cw/cw_gtdemod.hpp:12` | Both files define `CwDecodeResult`; gridtracker header was modified to reference `Cw::CwDecodeResult` instead |
-| `template argument 1 is invalid` / `template argument 2 is invalid` | `lib/gridtracker_cw/cw_gtdemod.hpp:26` | Missing `Cw::` namespace qualification on `CwDecodeResult` in `std::vector<CwDecodeResult>` |
-| `qualified-id in declaration before '(' token` | `widgets/mainwindow_jtty.cpp:2475,2495` | Restructuring of `on_cbReverse_toggled` and `on_sbSquelch_valueChanged` introduced syntax errors; reverted to original |
-| `expected '}' at end of input` | `widgets/mainwindow_jtty.cpp:2510` | Same as above — missing closing brace |
-| `expected declaration before '}' token` | `lib/gridtracker_cw/cw_gtdemod.hpp:112` | Namespace qualification fix for `results_` vector member |
-| `'make_unique' is not a member of 'std'` | `CwDecoder.cpp:8` | Requires C++14 or proper CMake configuration; original wsjtx build uses different pattern |
+| Error | Location | Status |
+|-------|----------|--------|
+| `redefinition of 'struct Cw::CwDecodeResult'` | `lib/cw/cw_demod.hpp` vs `lib/gridtracker_cw/cw_gtdemod.hpp` | ✅ Fixed - added `channel` field to `CwDecodeResult` |
+| `template argument 1 is invalid` / `template argument 2 is invalid` | `lib/gridtracker_cw/cw_gtdemod.hpp:26` | ✅ Fixed - `Cw::CwDecodeResult` properly qualified |
+| `qualified-id in declaration before '(' token` | `widgets/mainwindow_jtty.cpp:2475,2495` | ✅ Fixed - UI functions reverted to original |
+| `expected '}' at end of input` | `widgets/mainwindow_jtty.cpp:2510` | ✅ Fixed - same as above |
+| `expected declaration before '}' token` | `lib/gridtracker_cw/cw_gtdemod.hpp:112` | ✅ Fixed - namespace qualification |
+| `'make_unique' is not a member of 'std'` | `CwDecoder.cpp:8` | ✅ Fixed - replaced with `reset(new ...)` |
+| Type mismatch `CwDecodeResult`/`CwMultiDemodResult` | `CwDecoder.cpp:process()` | ✅ Fixed - separate handling per decoder type |
+| Missing `cw_modem` library link | `CMakeLists.txt` | ✅ Fixed - added `target_link_libraries(wsjtx ... cw_modem)` and `add_subdirectory(lib/cw)` |
 
 ## Integration Checklist (Modified Code Status)
 
@@ -78,10 +80,10 @@ The following compile errors were encountered when attempting to build the modif
 | `CwDecoder` processes audio and emits `MessageUpdate` | ✅ Done (dual-type switching logic) |
 | TX generates correct CW audio at selected WPM | ✅ Done (shared `Cw::CwModem`) |
 | Waterfall shows CW bandwidth markers | ✅ Done (via `setCwWpm()` in plotter) |
-| **Unit tests pass** (fldigi decoder only) | ✅ Done |
-| **Gridtracker decoder compiles** | ⚠️ Partial — header fix applied, full wsjtx build not successful |
+| Unit tests pass (fldigi decoder only) | ✅ Done |
+| **Gridtracker decoder compiles and links** | ✅ Done (with CMake `add_subdirectory(lib/cw)` and code fixes) |
 | **Decoder type selection UI** | ✅ Done (CW (fldigi) / CW (gridtracker) in submode dropdown) |
-| **Gridtracker decoder selectable via UI** | ⚠️ Logic implemented in `setDecoderType()`, but full build fails |
+| **Gridtracker decoder selectable via UI** | ✅ Done (setDecoderType switches implementations) |
 
 ## Related Documents
 

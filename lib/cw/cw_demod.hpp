@@ -14,6 +14,7 @@ struct CwDecodeResult {
     float snr_db = 0.0f;
     int wpm = 0;
     bool complete = false;
+    int channel = 0;
 };
 
 class CwDemod {
