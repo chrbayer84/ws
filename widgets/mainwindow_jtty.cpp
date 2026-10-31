@@ -2202,6 +2202,7 @@ void MainWindow::on_actionCW_triggered()
   ui->actionDeepestDecode->setEnabled(false);
   setup_status_bar (false);
   monitor(true);
+  m_cwDecoder.begin(1, 0, 0); // Initialize CW decoder session
   updateConversationalSubmodeControls();
   statusChanged();
 }
