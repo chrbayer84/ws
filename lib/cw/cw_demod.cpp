@@ -140,9 +140,13 @@ void CwDemod::envelope_detect(const float* samples, int count) {
 }
 
 void CwDemod::detect_elements(int count) {
+    // Use adaptive threshold: minimum of 0.15 and 3x noise floor.
+    // This prevents noise from being decoded while allowing weak CW signals.
+    float threshold = std::max(0.15f, noise_floor_ * 3.0f);
+
     for (int i = 0; i < count; ++i) {
         float env = envelope_[i];
-        bool tone_present = env > 0.15f;
+        bool tone_present = env > threshold;
 
         if (reverse_) tone_present = !tone_present;
 
