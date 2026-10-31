@@ -71,11 +71,31 @@ void CwDemod::rx_init() {
     bp_filter_.b2 = -alpha;
     bp_filter_.a1 = -D * beta;
     bp_filter_.a2 = 2.0f * beta;
+
+    // Normalize bandpass filter to unity gain at center frequency
+    float w0 = 2.0f * M_PI * fc;
+    float z_cos = std::cos(w0);
+    float z_sin = std::sin(w0);
+    float cos2 = std::cos(2.0f * w0);
+    float sin2 = std::sin(2.0f * w0);
+    float num_real = bp_filter_.b0 + bp_filter_.b2 * cos2;
+    float num_imag = -bp_filter_.b2 * sin2;
+    float num_mag = std::sqrt(num_real * num_real + num_imag * num_imag);
+    float den_real = 1.0f + bp_filter_.a1 * z_cos + bp_filter_.a2 * cos2;
+    float den_imag = -bp_filter_.a1 * z_sin - bp_filter_.a2 * sin2;
+    float den_mag = std::sqrt(den_real * den_real + den_imag * den_imag);
+    float gain = num_mag / den_mag;
+    if (gain > 0.0f) {
+        float inv_gain = 1.0f / gain;
+        bp_filter_.b0 *= inv_gain;
+        bp_filter_.b1 *= inv_gain;
+        bp_filter_.b2 *= inv_gain;
+    }
     bp_filter_.reset();
 
-    // Envelope detector: fast attack, slow release
-    env_alpha_ = 0.9f;  // attack
-    env_beta_ = 0.995f; // release
+    // Envelope detector: fast attack, tuned release for CW element separation
+    env_alpha_ = 0.9f;   // attack
+    env_beta_ = 0.95f;   // release
 
     std::fill(filtered_samples_.begin(), filtered_samples_.end(), 0.0f);
     std::fill(envelope_.begin(), envelope_.end(), 0.0f);
@@ -86,7 +106,7 @@ void CwDemod::rx_init() {
     state_ = RxState::IDLE;
     tone_start_sample_ = 0;
     silence_start_sample_ = 0;
-    noise_floor_ = 0.0f;
+    noise_floor_ = 0.01f;
     signal_peak_ = 0.0f;
     env_state_ = 0.0f;
 
@@ -119,10 +139,10 @@ void CwDemod::envelope_detect(const float* samples, int count) {
     }
 }
 
-void CwDemod::detect_elements() {
-    for (int i = 0; i < static_cast<int>(envelope_.size()); ++i) {
+void CwDemod::detect_elements(int count) {
+    for (int i = 0; i < count; ++i) {
         float env = envelope_[i];
-        bool tone_present = env > noise_floor_ * 2.0f;
+        bool tone_present = env > 0.15f;
 
         if (reverse_) tone_present = !tone_present;
 
@@ -163,12 +183,12 @@ void CwDemod::detect_elements() {
                     tone_start_sample_ = samples_processed_ + i;
                     signal_peak_ = env;
                 } else {
-                    noise_floor_ = noise_floor_ * 0.99f + env * 0.01f;
+                    noise_floor_ = noise_floor_ * 0.9f + env * 0.1f;
                 }
                 break;
         }
     }
-    samples_processed_ += static_cast<int>(envelope_.size());
+    samples_processed_ += count;
 }
 
 float CwDemod::compute_snr() {
@@ -288,11 +308,15 @@ void CwDemod::rx_process(const float* samples, int count, float /*center_freq_hz
 
         apply_bandpass(samples + offset, chunk);
         envelope_detect(filtered_samples_.data(), chunk);
-        detect_elements();
+        detect_elements(chunk);
 
         if (elements_.size() > 10) {
             decode_elements();
         }
+    }
+    // Process any remaining elements
+    if (!elements_.empty()) {
+        decode_elements();
     }
 }
 

@@ -59,7 +59,7 @@ private:
 
     void apply_bandpass(const float* samples, int count);
     void envelope_detect(const float* samples, int count);
-    void detect_elements();
+    void detect_elements(int count);
     void decode_elements();
     void update_wpm_tracking(int dot_samples, int dash_samples);
     std::string match_pattern(const std::vector<float>& weights);
