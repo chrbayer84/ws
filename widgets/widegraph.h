@@ -10,6 +10,7 @@
 #include <QHash>
 #include <QSet>
 #include <QVariant>
+#include <QMap>
 #include "WFPalette.hpp"
 #include "decode_label.h"
 
@@ -52,6 +53,10 @@ public:
   void   setSuperFox(bool b);
   void   setSuperHound(bool b);
   int    smoothYellow();
+  void   setWaterfallAvgForMode(const QString& mode, int n);
+  int    waterfallAvgForMode(const QString& mode) const;
+  void   setNsmoForMode(const QString& mode, int n);
+  int    nsmoForMode(const QString& mode) const;
   void   setRxBand (QString const& band);
   void   setWSPRtransmitted();
   void   drawRed(int ia, int ib);
@@ -164,6 +169,8 @@ private:
   QDir m_palettes_path;
   WFPalette m_userPalette;
   QHash<QString, QVariant> m_fMinPerBand;
+  QMap<QString, int> m_waterfallAvgByMode;  //Per-mode waterfall averaging (CW=1 for fast display)
+  QMap<QString, int> m_nsmoByMode;          //Per-mode yellow-line smoothing (CW=1 for fast display)
 
   double m_tr0;
   double m_TRperiod;

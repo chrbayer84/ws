@@ -86,6 +86,24 @@ WideGraph::WideGraph(QSettings * settings, QWidget *parent) :
     m_waterfallAvg = m_settings->value("WaterfallAvg",2).toInt();
     ui->waterfallAvgSpinBox->setValue(m_waterfallAvg);
     ui->widePlot->setWaterfallAvg(m_waterfallAvg);
+
+    //Load per-mode waterfall averaging and smoothing settings
+    m_settings->beginGroup("WaterfallAvgByMode");
+    QStringList keys = m_settings->childKeys();
+    for (const QString& k : keys)
+        m_waterfallAvgByMode[k] = m_settings->value(k).toInt();
+    m_settings->endGroup();
+    m_settings->beginGroup("NsmoByMode");
+    keys = m_settings->childKeys();
+    for (const QString& k : keys)
+        m_nsmoByMode[k] = m_settings->value(k).toInt();
+    m_settings->endGroup();
+    //CW defaults: no averaging so dits/dahs are individually visible
+    if (!m_waterfallAvgByMode.contains("CW")) m_waterfallAvgByMode["CW"] = 1;
+    if (!m_nsmoByMode.contains("CW")) m_nsmoByMode["CW"] = 1;
+    //Non-CW defaults
+    if (!m_waterfallAvgByMode.contains("FT8")) m_waterfallAvgByMode["FT8"] = 2;
+    if (!m_nsmoByMode.contains("FT8")) m_nsmoByMode["FT8"] = 1;
     ui->widePlot->setCurrent(m_settings->value("Current",false).toBool());
     ui->widePlot->setCumulative(m_settings->value("Cumulative",true).toBool());
     ui->widePlot->setLinearAvg(m_settings->value("LinearAvg",false).toBool());
@@ -405,6 +423,16 @@ void WideGraph::saveSettings()                                           //saveS
   m_settings->setValue ("SmoothYellow", ui->smoSpinBox->value ());
   m_settings->setValue ("Percent2D",m_Percent2DScreen);
   m_settings->setValue ("WaterfallAvg", ui->waterfallAvgSpinBox->value ());
+  m_settings->beginGroup("WaterfallAvgByMode");
+  m_settings->remove("");
+  for (auto it = m_waterfallAvgByMode.begin(); it != m_waterfallAvgByMode.end(); ++it)
+      m_settings->setValue(it.key(), it.value());
+  m_settings->endGroup();
+  m_settings->beginGroup("NsmoByMode");
+  m_settings->remove("");
+  for (auto it = m_nsmoByMode.begin(); it != m_nsmoByMode.end(); ++it)
+      m_settings->setValue(it.key(), it.value());
+  m_settings->endGroup();
   m_settings->setValue ("Current", ui->widePlot->current());
   m_settings->setValue ("Cumulative", ui->widePlot->cumulative());
   m_settings->setValue ("LinearAvg", ui->widePlot->linearAvg());
@@ -492,6 +520,7 @@ void WideGraph::on_bppSpinBox_valueChanged(int n)                            //b
 void WideGraph::on_waterfallAvgSpinBox_valueChanged(int n)                  //Navg
 {
   m_waterfallAvg = n;
+  m_waterfallAvgByMode[m_mode] = n;
   ui->widePlot->setWaterfallAvg(n);
 }
 
@@ -584,6 +613,29 @@ void WideGraph::setTxFreq(int n)                                   //setTxFreq
 
 void WideGraph::setMode(QString mode)                              //setMode
 {
+  // Save current mode's waterfall averaging and smoothing settings
+  m_waterfallAvgByMode[m_mode] = m_waterfallAvg;
+  m_nsmoByMode[m_mode] = m_nsmo;
+
+  // Load the new mode's saved values (or defaults)
+  if (m_waterfallAvgByMode.contains(mode)) {
+    m_waterfallAvg = m_waterfallAvgByMode[mode];
+  } else {
+    m_waterfallAvg = (mode == "CW") ? 1 : 2;
+    m_waterfallAvgByMode[mode] = m_waterfallAvg;
+  }
+  if (m_nsmoByMode.contains(mode)) {
+    m_nsmo = m_nsmoByMode[mode];
+  } else {
+    m_nsmo = (mode == "CW") ? 1 : 1;
+    m_nsmoByMode[mode] = m_nsmo;
+  }
+
+  //Update UI controls to reflect the new mode's settings
+  ui->waterfallAvgSpinBox->setValue(m_waterfallAvg);
+  ui->smoSpinBox->setValue(m_nsmo);
+  ui->widePlot->setWaterfallAvg(m_waterfallAvg);
+
   // Wipe callsign overlay when operator changes mode (FT8→FT4 etc.).
   // Old labels at FT8 audio offsets aren't meaningful in FT4 framing
   // and would just clutter the new view.
@@ -872,11 +924,43 @@ void WideGraph::setSingleDecode(bool b)
 void WideGraph::on_smoSpinBox_valueChanged(int n)
 {
   m_nsmo=n;
+  m_nsmoByMode[m_mode] = n;
 }
 
 int WideGraph::smoothYellow()
 {
   return m_nsmo;
+}
+
+void WideGraph::setWaterfallAvgForMode(const QString& mode, int n)
+{
+  m_waterfallAvgByMode[mode] = n;
+  if (m_mode == mode) {
+    m_waterfallAvg = n;
+    ui->waterfallAvgSpinBox->setValue(n);
+    ui->widePlot->setWaterfallAvg(n);
+  }
+}
+
+int WideGraph::waterfallAvgForMode(const QString& mode) const
+{
+  if (m_waterfallAvgByMode.contains(mode)) return m_waterfallAvgByMode[mode];
+  return (mode == "CW") ? 1 : 2;
+}
+
+void WideGraph::setNsmoForMode(const QString& mode, int n)
+{
+  m_nsmoByMode[mode] = n;
+  if (m_mode == mode) {
+    m_nsmo = n;
+    ui->smoSpinBox->setValue(n);
+  }
+}
+
+int WideGraph::nsmoForMode(const QString& mode) const
+{
+  if (m_nsmoByMode.contains(mode)) return m_nsmoByMode[mode];
+  return (mode == "CW") ? 1 : 1;
 }
 
 void WideGraph::setWSPRtransmitted()
