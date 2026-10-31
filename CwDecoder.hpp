@@ -2,7 +2,7 @@
 #define CW_DECODER_HPP
 
 #include "lib/cw/cw_multi_demod.hpp"
-#include "lib/gridtracker_cw/cw_gtdemod.hpp"
+#include "lib/cw/cw_gtdemod.hpp"
 #include "widgets/JttyMessages.hpp"
 #include <QVector>
 #include <QString>

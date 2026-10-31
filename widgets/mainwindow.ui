@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
@@ -20,10 +19,10 @@
    <string>WSJT-X   by K1JT</string>
   </property>
   <property name="toolTip">
-   <string/>
+   <string />
   </property>
   <property name="styleSheet">
-   <string notr="true"/>
+   <string notr="true" />
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QVBoxLayout" name="verticalLayout_6" stretch="0,0">
@@ -1068,7 +1067,7 @@
                  <string>Locator of station to be worked</string>
                 </property>
                 <property name="text">
-                 <string/>
+                 <string />
                 </property>
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
@@ -1173,7 +1172,7 @@
                  <string>Callsign of station to be worked</string>
                 </property>
                 <property name="text">
-                 <string/>
+                 <string />
                 </property>
                 <property name="alignment">
                  <set>Qt::AlignCenter</set>
@@ -1405,11 +1404,11 @@
                        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Check this to call CQ on the &amp;quot;Tx CQ&amp;quot; frequency. Rx will be on the current frequency and the CQ message wiill include the current Rx frequency so callers know which frequency to reply on.&lt;/p&gt;&lt;p&gt;Not available to nonstandard callsign holders.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                       </property>
                       <property name="accessibleDescription">
-                       <string>Check this to call CQ on the &quot;Tx CQ&quot; frequency. Rx will be on the current frequency and the CQ message wiill include the current Rx frequency so callers know which frequency to reply on.
+                       <string>Check this to call CQ on the "Tx CQ" frequency. Rx will be on the current frequency and the CQ message wiill include the current Rx frequency so callers know which frequency to reply on.
 Not available to nonstandard callsign holders.</string>
                       </property>
                       <property name="text">
-                       <string/>
+                       <string />
                       </property>
                      </widget>
                     </item>
@@ -1548,10 +1547,10 @@ When not checked you can view the calibration results.</string>
                     <item>
                      <widget class="QComboBox" name="respondComboBox">
                       <property name="toolTip">
-                       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select &lt;span style=&quot; font-weight:600;&quot;&gt;CQ: None&lt;/span&gt; to choose callers manually.&lt;/p&gt;&lt;p&gt;Select &lt;span style=&quot; font-weight:600;&quot;&gt;CQ: First&lt;/span&gt; to respond automatically to the first decoded reply to your CQ. &lt;/p&gt;&lt;p&gt;Select &lt;span style=&quot; font-weight:600;&quot;&gt;CQ: Max Dist&lt;/span&gt; to respond automatically to the reply yielding most points in the ARRL International Digital Contest, or in general to the most distant station, if its message has a valid grid.&lt;/p&gt;&lt;p&gt;Select &lt;span style=&quot; font-weight:600;&quot;&gt;CQ: Max dB&lt;/span&gt; to respond automatically to the the strongest station's reply to your CQ. &lt;/p&gt;&lt;p&gt;Select &lt;span style=&quot; font-weight:600;&quot;&gt;CQ: Min dB&lt;/span&gt; to respond automatically to the the weakest station's reply to your CQ. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Select &lt;span style=" font-weight:600;"&gt;CQ: None&lt;/span&gt; to choose callers manually.&lt;/p&gt;&lt;p&gt;Select &lt;span style=" font-weight:600;"&gt;CQ: First&lt;/span&gt; to respond automatically to the first decoded reply to your CQ. &lt;/p&gt;&lt;p&gt;Select &lt;span style=" font-weight:600;"&gt;CQ: Max Dist&lt;/span&gt; to respond automatically to the reply yielding most points in the ARRL International Digital Contest, or in general to the most distant station, if its message has a valid grid.&lt;/p&gt;&lt;p&gt;Select &lt;span style=" font-weight:600;"&gt;CQ: Max dB&lt;/span&gt; to respond automatically to the the strongest station's reply to your CQ. &lt;/p&gt;&lt;p&gt;Select &lt;span style=" font-weight:600;"&gt;CQ: Min dB&lt;/span&gt; to respond automatically to the the weakest station's reply to your CQ. &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                       </property>
                       <property name="currentText">
-                       <string/>
+                       <string />
                       </property>
                       <property name="currentIndex">
                        <number>-1</number>
@@ -1567,7 +1566,7 @@ When not checked you can view the calibration results.</string>
                        <bool>false</bool>
                       </property>
                       <property name="toolTip">
-                       <string>Check to generate &quot;@1250  (SEND MSGS)&quot; in Tx6.</string>
+                       <string>Check to generate "@1250  (SEND MSGS)" in Tx6.</string>
                       </property>
                       <property name="text">
                        <string>Tx6</string>
@@ -2003,7 +2002,7 @@ When not checked you can view the calibration results.</string>
                            <set>Qt::AlignCenter</set>
                           </property>
                           <property name="suffix">
-                           <string/>
+                           <string />
                           </property>
                           <property name="prefix">
                            <string>F High </string>
@@ -2167,7 +2166,7 @@ When not checked you can view the calibration results.</string>
                          <string notr="true">margin-left: 10%; margin-right: 0%</string>
                         </property>
                         <property name="text">
-                         <string/>
+                         <string />
                         </property>
                         <property name="shortcut">
                          <string>Ctrl+6</string>
@@ -2214,7 +2213,7 @@ RR73 messages should only be used when you are reasonably confident that no mess
                          <string notr="true">margin-left: 10%; margin-right: 0%</string>
                         </property>
                         <property name="text">
-                         <string/>
+                         <string />
                         </property>
                         <property name="shortcut">
                          <string>Ctrl+4</string>
@@ -2234,7 +2233,7 @@ Double click to toggle the use of the Tx1 message to start a QSO with a station 
                          <string notr="true">margin-left: 10%; margin-right: 0%</string>
                         </property>
                         <property name="text">
-                         <string/>
+                         <string />
                         </property>
                         <property name="shortcut">
                          <string>Ctrl+1</string>
@@ -2321,7 +2320,7 @@ Double click to toggle the use of the Tx1 message to start a QSO with a station 
                          <string notr="true">margin-left: 10%; margin-right: 0%</string>
                         </property>
                         <property name="text">
-                         <string/>
+                         <string />
                         </property>
                         <property name="shortcut">
                          <string>Ctrl+2</string>
@@ -2443,7 +2442,7 @@ Double click to toggle the use of the Tx1 message to start a QSO with a station 
                          <string notr="true">margin-left: 10%; margin-right: 0%</string>
                         </property>
                         <property name="text">
-                         <string/>
+                         <string />
                         </property>
                         <property name="shortcut">
                          <string>Ctrl+3</string>
@@ -2479,7 +2478,7 @@ Double-click to reset to the standard 73 message</string>
                          <string notr="true">margin-left: 10%; margin-right: 0%</string>
                         </property>
                         <property name="text">
-                         <string/>
+                         <string />
                         </property>
                         <property name="shortcut">
                          <string>Ctrl+5</string>
@@ -2804,7 +2803,7 @@ Double-click to reset to the standard 73 message</string>
                          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum number of concurrent streams for Fox transmissions.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                         </property>
                         <property name="suffix">
-                         <string/>
+                         <string />
                         </property>
                         <property name="prefix">
                          <string>N Slots    </string>
@@ -3009,7 +3008,7 @@ Double-click to reset to the standard 73 message</string>
                             <string>2m MSK144</string>
                            </property>
                            <property name="whatsThis">
-                            <string/>
+                            <string />
                            </property>
                            <property name="text">
                             <string>2m MSK</string>
@@ -3228,7 +3227,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG6.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3250,7 +3249,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG1.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3266,7 +3265,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG2.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3276,7 +3275,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG7.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3329,7 +3328,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG5.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3345,7 +3344,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG3.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3361,7 +3360,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG4.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3377,7 +3376,7 @@ Double-click to reset to the standard 73 message</string>
                            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Right-click to toggle between FT8 and FT2 mode for QRG8.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                           </property>
                           <property name="text">
-                           <string/>
+                           <string />
                           </property>
                          </widget>
                         </item>
@@ -3647,14 +3646,25 @@ Double-click to reset to the standard 73 message</string>
                 </widget>
                </item>
                <item>
-                <widget class="QComboBox" name="comboBoxSubmode">
-                 <property name="toolTip">
-                  <string>Select RTTY or PSK submode</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="horizontalSpacer_submode1">
+                 <widget class="QComboBox" name="comboBoxSubmode">
+                  <property name="toolTip">
+                   <string>Select RTTY or PSK submode</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_decoder">
+                  <property name="text">
+                   <string>Decoder</string>
+                  </property>
+                 </widget>
+                </item>
+                 <item>
+                  <widget class="QComboBox" name="comboBoxDecoder">
+                  </widget>
+                 </item>
+                <item>
+                 <spacer name="horizontalSpacer_submode1">
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>
                  </property>
@@ -3754,16 +3764,6 @@ Double-click to reset to the standard 73 message</string>
                   </size>
                  </property>
                 </spacer>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="cbIncludeTime">
-                 <property name="toolTip">
-                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Show the UTC start time of each decoded message.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                 </property>
-                 <property name="text">
-                  <string>Include Time</string>
-                 </property>
-                </widget>
                </item>
                <item>
                 <spacer name="horizontalSpacer_9">
@@ -4049,7 +4049,7 @@ Double-click to reset to the standard 73 message</string>
                <item row="4" column="1">
                 <widget class="QLineEdit" name="Tx_Message">
                  <property name="text">
-                  <string/>
+                  <string />
                  </property>
                 </widget>
                </item>
@@ -4088,7 +4088,7 @@ Double-click to reset to the standard 73 message</string>
                   </widget>
                  </item>
                  <item>
-                  <widget class="QLineEdit" name="lineEdit"/>
+                  <widget class="QLineEdit" name="lineEdit" />
                  </item>
                 </layout>
                </item>
@@ -4489,7 +4489,7 @@ Double-click to reset to the standard 73 message</string>
                           <string>Percentage of minute sequences devoted to transmitting.</string>
                          </property>
                          <property name="styleSheet">
-                          <string notr="true">QSpinBox:enabled[notx=&quot;true&quot;] {
+                          <string notr="true">QSpinBox:enabled[notx="true"] {
 	color: rgb(0, 0, 0);
 	background-color: rgb(255, 255, 0);
 }</string>
@@ -4894,7 +4894,7 @@ Double-click to reset to the standard 73 message</string>
    color : yellow;
    background-color : black;
 }
-QLabel[oob=&quot;true&quot;] {
+QLabel[oob="true"] {
   background-color: red;
 }</string>
            </property>
@@ -4938,7 +4938,7 @@ QLabel[oob=&quot;true&quot;] {
             <number>0</number>
            </property>
            <property name="text">
-            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt; 2015 Jun 17 &lt;/p&gt;&lt;p align=&quot;center&quot;&gt; 01:23:45 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align="center"&gt; 2015 Jun 17 &lt;/p&gt;&lt;p align="center"&gt; 01:23:45 &lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
            </property>
            <property name="alignment">
             <set>Qt::AlignCenter</set>
@@ -5238,29 +5238,7 @@ Yellow when too low</string>
                 </property>
                </widget>
               </item>
-<item>
-                <widget class="QPushButton" name="cwButton">
-                <property name="minimumSize">
-                 <size>
-                  <width>32</width>
-                  <height>0</height>
-                 </size>
-                </property>
-                <property name="checkable">
-                 <bool>true</bool>
-                </property>
-                <property name="focusPolicy">
-                 <enum>Qt::StrongFocus</enum>
-                </property>
-                <property name="toolTip">
-                 <string>Switch to CW mode</string>
-                </property>
-                <property name="text">
-                 <string>CW</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
+</layout>
            </item>
            <item row="0" column="0" colspan="2">
             <layout class="QHBoxLayout" name="horizontalLayout" stretch="1,0">
@@ -5340,13 +5318,13 @@ Yellow when too low</string>
  min-width:20px;
  min-height:20px;
 }
-QPushButton[state=&quot;error&quot;] {
+QPushButton[state="error"] {
  background-color: red;
 }
-QPushButton[state=&quot;warning&quot;] {
+QPushButton[state="warning"] {
  background-color: orange;
 }
-QPushButton[state=&quot;ok&quot;] {
+QPushButton[state="ok"] {
  background-color: #00ff00;
 }</string>
                </property>
@@ -5379,25 +5357,25 @@ QPushButton[state=&quot;ok&quot;] {
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="actionOpen"/>
-    <addaction name="actionOpen_next_in_directory"/>
-    <addaction name="actionDecode_remaining_files_in_directory"/>
-    <addaction name="separator"/>
-    <addaction name="actionDelete_all_wav_files_in_SaveDir"/>
-    <addaction name="actionErase_ALL_TXT"/>
-    <addaction name="actionErase_wsjtx_log_adi"/>
-    <addaction name="actionErase_Tx_Log"/>
-    <addaction name="actionErase_Ignore_List"/>
-    <addaction name="actionErase_WSPR_hashtable"/>
-    <addaction name="actionErase_list_of_Q65_callers"/>
-    <addaction name="reset_cabrillo_log_action"/>
-    <addaction name="actionExport_Cabrillo_log"/>
-    <addaction name="actionOpen_log_directory"/>
-    <addaction name="separator"/>
-    <addaction name="actionSettings"/>
-    <addaction name="separator"/>
-    <addaction name="separator"/>
-    <addaction name="actionExit"/>
+    <addaction name="actionOpen" />
+    <addaction name="actionOpen_next_in_directory" />
+    <addaction name="actionDecode_remaining_files_in_directory" />
+    <addaction name="separator" />
+    <addaction name="actionDelete_all_wav_files_in_SaveDir" />
+    <addaction name="actionErase_ALL_TXT" />
+    <addaction name="actionErase_wsjtx_log_adi" />
+    <addaction name="actionErase_Tx_Log" />
+    <addaction name="actionErase_Ignore_List" />
+    <addaction name="actionErase_WSPR_hashtable" />
+    <addaction name="actionErase_list_of_Q65_callers" />
+    <addaction name="reset_cabrillo_log_action" />
+    <addaction name="actionExport_Cabrillo_log" />
+    <addaction name="actionOpen_log_directory" />
+    <addaction name="separator" />
+    <addaction name="actionSettings" />
+    <addaction name="separator" />
+    <addaction name="separator" />
+    <addaction name="actionExit" />
    </widget>
    <widget class="QMenu" name="menuView">
     <property name="title">
@@ -5411,93 +5389,93 @@ QPushButton[state=&quot;ok&quot;] {
       <property name="title">
        <string>Font size</string>
       </property>
-      <addaction name="actionCallsign_font_small"/>
-      <addaction name="actionCallsign_font_normal"/>
-      <addaction name="actionCallsign_font_medium"/>
-      <addaction name="actionCallsign_font_large"/>
+      <addaction name="actionCallsign_font_small" />
+      <addaction name="actionCallsign_font_normal" />
+      <addaction name="actionCallsign_font_medium" />
+      <addaction name="actionCallsign_font_large" />
      </widget>
      <widget class="QMenu" name="menuCallsign_transparency">
       <property name="title">
        <string>Transparency</string>
       </property>
-      <addaction name="actionCallsign_transparency_None"/>
-      <addaction name="actionCallsign_transparency_Low"/>
-      <addaction name="actionCallsign_transparency_Medium"/>
-      <addaction name="actionCallsign_transparency_High"/>
+      <addaction name="actionCallsign_transparency_None" />
+      <addaction name="actionCallsign_transparency_Low" />
+      <addaction name="actionCallsign_transparency_Medium" />
+      <addaction name="actionCallsign_transparency_High" />
      </widget>
      <widget class="QMenu" name="menuCallsign_position">
       <property name="title">
        <string>Position</string>
       </property>
-      <addaction name="actionCallsign_position_top"/>
-      <addaction name="actionCallsign_position_bottom"/>
+      <addaction name="actionCallsign_position_top" />
+      <addaction name="actionCallsign_position_bottom" />
      </widget>
-     <addaction name="actionCallsign_overlay_enabled"/>
-     <addaction name="separator"/>
-     <addaction name="actionCallsign_persist_1"/>
-     <addaction name="actionCallsign_persist_2"/>
-     <addaction name="actionCallsign_persist_3"/>
-     <addaction name="actionCallsign_persist_4"/>
-     <addaction name="actionCallsign_persist_5"/>
-     <addaction name="separator"/>
-     <addaction name="menuCallsign_font"/>
-     <addaction name="menuCallsign_transparency"/>
-     <addaction name="menuCallsign_position"/>
+     <addaction name="actionCallsign_overlay_enabled" />
+     <addaction name="separator" />
+     <addaction name="actionCallsign_persist_1" />
+     <addaction name="actionCallsign_persist_2" />
+     <addaction name="actionCallsign_persist_3" />
+     <addaction name="actionCallsign_persist_4" />
+     <addaction name="actionCallsign_persist_5" />
+     <addaction name="separator" />
+     <addaction name="menuCallsign_font" />
+     <addaction name="menuCallsign_transparency" />
+     <addaction name="menuCallsign_position" />
     </widget>
-    <addaction name="actionWide_Waterfall"/>
-    <addaction name="actionAstronomical_data"/>
-    <addaction name="actionMessage_averaging"/>
-    <addaction name="actionEcho_Graph"/>
-    <addaction name="actionFast_Graph"/>
-    <addaction name="contest_log_action"/>
-    <addaction name="fox_log_action"/>
-    <addaction name="actionColors"/>
-    <addaction name="actionActiveStations"/>
-    <addaction name="actionSWL_Mode"/>
-    <addaction name="actionQSYMessage_Creator"/>
-    <addaction name="actionQSY_Monitor"/>
-    <addaction name="actionEnable_QSY_Popups"/>
-    <addaction name="actionBand_Buttons"/>
-    <addaction name="actionVHF_UHF_Buttons"/>
-    <addaction name="actionUse_Dark_Style"/>
-    <addaction name="separator"/>
-    <addaction name="menuCallsign_overlay"/>
+    <addaction name="actionWide_Waterfall" />
+    <addaction name="actionAstronomical_data" />
+    <addaction name="actionMessage_averaging" />
+    <addaction name="actionEcho_Graph" />
+    <addaction name="actionFast_Graph" />
+    <addaction name="contest_log_action" />
+    <addaction name="fox_log_action" />
+    <addaction name="actionColors" />
+    <addaction name="actionActiveStations" />
+    <addaction name="actionSWL_Mode" />
+    <addaction name="actionQSYMessage_Creator" />
+    <addaction name="actionQSY_Monitor" />
+    <addaction name="actionEnable_QSY_Popups" />
+    <addaction name="actionBand_Buttons" />
+    <addaction name="actionVHF_UHF_Buttons" />
+    <addaction name="actionUse_Dark_Style" />
+    <addaction name="separator" />
+    <addaction name="menuCallsign_overlay" />
    </widget>
    <widget class="QMenu" name="menuFilters">
     <property name="title">
      <string>Filters</string>
     </property>
-    <addaction name="actionHideB4"/>
-    <addaction name="actionHideToday"/>
-    <addaction name="actionHideIgnored"/>
-    <addaction name="separator"/>
-    <addaction name="actionIgnoreB4"/>
-    <addaction name="actionIgnoreToday"/>
-    <addaction name="actionIgnoreIgnored"/>
-    <addaction name="separator"/>
-    <addaction name="actionHideTerritory1"/>
-    <addaction name="actionHideTerritory2"/>
-    <addaction name="actionHideTerritory3"/>
-    <addaction name="actionHideTerritory4"/>
-    <addaction name="separator"/>
-    <addaction name="actionHideEU"/>
-    <addaction name="actionHideNA"/>
-    <addaction name="actionHideSA"/>
-    <addaction name="actionHideAS"/>
-    <addaction name="actionHideAF"/>
-    <addaction name="actionHideOC"/>
-    <addaction name="actionHideAN"/>
-    <addaction name="separator"/>
-    <addaction name="actionHighlightB4"/>
-    <addaction name="actionHighlightToday"/>
-    <addaction name="actionHighlightIgnored"/>
-    <addaction name="separator"/>
-    <addaction name="actionHighlightTerritory1"/>
-    <addaction name="actionHighlightTerritory2"/>
-    <addaction name="actionHighlightTerritory3"/>
-    <addaction name="actionHighlightTerritory4"/>
-    <addaction name="separator"/>
-    <addaction name="actionHighlight_Whitelist_entries"/>
+    <addaction name="actionHideB4" />
+    <addaction name="actionHideToday" />
+    <addaction name="actionHideIgnored" />
+    <addaction name="separator" />
+    <addaction name="actionIgnoreB4" />
+    <addaction name="actionIgnoreToday" />
+    <addaction name="actionIgnoreIgnored" />
+    <addaction name="separator" />
+    <addaction name="actionHideTerritory1" />
+    <addaction name="actionHideTerritory2" />
+    <addaction name="actionHideTerritory3" />
+    <addaction name="actionHideTerritory4" />
+    <addaction name="separator" />
+    <addaction name="actionHideEU" />
+    <addaction name="actionHideNA" />
+    <addaction name="actionHideSA" />
+    <addaction name="actionHideAS" />
+    <addaction name="actionHideAF" />
+    <addaction name="actionHideOC" />
+    <addaction name="actionHideAN" />
+    <addaction name="separator" />
+    <addaction name="actionHighlightB4" />
+    <addaction name="actionHighlightToday" />
+    <addaction name="actionHighlightIgnored" />
+    <addaction name="separator" />
+    <addaction name="actionHighlightTerritory1" />
+    <addaction name="actionHighlightTerritory2" />
+    <addaction name="actionHighlightTerritory3" />
+    <addaction name="actionHighlightTerritory4" />
+    <addaction name="separator" />
+    <addaction name="actionHighlight_Whitelist_entries" />
    </widget>
    <widget class="QMenu" name="menuDecode">
     <property name="title">
@@ -5511,169 +5489,169 @@ QPushButton[state=&quot;ok&quot;] {
       <property name="title">
        <string>Decoder sensitivity</string>
       </property>
-      <addaction name="actionFT8SensMin"/>
-      <addaction name="actionlowFT8thresholds"/>
-      <addaction name="actionFT8subpass"/>
+      <addaction name="actionFT8SensMin" />
+      <addaction name="actionlowFT8thresholds" />
+      <addaction name="actionFT8subpass" />
      </widget>
      <widget class="QMenu" name="menuDecoder_start">
       <property name="title">
        <string>Decoder start</string>
       </property>
-      <addaction name="actionStartTwoStage"/>
-      <addaction name="actionStartThreeStage"/>
-      <addaction name="actionStartEarly"/>
-      <addaction name="actionStartNormal"/>
-      <addaction name="actionStartLate"/>
+      <addaction name="actionStartTwoStage" />
+      <addaction name="actionStartThreeStage" />
+      <addaction name="actionStartEarly" />
+      <addaction name="actionStartNormal" />
+      <addaction name="actionStartLate" />
      </widget>
      <widget class="QMenu" name="menuFT8_threads">
       <property name="title">
        <string>Number of threads</string>
       </property>
-      <addaction name="actionMTAuto"/>
-      <addaction name="actionMT1"/>
-      <addaction name="actionMT2"/>
-      <addaction name="actionMT3"/>
-      <addaction name="actionMT4"/>
-      <addaction name="actionMT5"/>
-      <addaction name="actionMT6"/>
-      <addaction name="actionMT7"/>
-      <addaction name="actionMT8"/>
-      <addaction name="actionMT9"/>
-      <addaction name="actionMT10"/>
-      <addaction name="actionMT11"/>
-      <addaction name="actionMT12"/>
+      <addaction name="actionMTAuto" />
+      <addaction name="actionMT1" />
+      <addaction name="actionMT2" />
+      <addaction name="actionMT3" />
+      <addaction name="actionMT4" />
+      <addaction name="actionMT5" />
+      <addaction name="actionMT6" />
+      <addaction name="actionMT7" />
+      <addaction name="actionMT8" />
+      <addaction name="actionMT9" />
+      <addaction name="actionMT10" />
+      <addaction name="actionMT11" />
+      <addaction name="actionMT12" />
      </widget>
      <widget class="QMenu" name="menuQSO_RX_freq_sensitivity">
       <property name="title">
        <string>QSO RX freq sensitivity</string>
       </property>
-      <addaction name="actionRXfLow"/>
-      <addaction name="actionRXfMedium"/>
-      <addaction name="actionRXfHigh"/>
+      <addaction name="actionRXfLow" />
+      <addaction name="actionRXfMedium" />
+      <addaction name="actionRXfHigh" />
      </widget>
      <widget class="QMenu" name="menuDecoding_cycles">
       <property name="title">
        <string>Decoding cycles</string>
       </property>
-      <addaction name="actionDecFT8cycles1"/>
-      <addaction name="actionDecFT8cycles2"/>
-      <addaction name="actionDecFT8cycles3"/>
+      <addaction name="actionDecFT8cycles1" />
+      <addaction name="actionDecFT8cycles2" />
+      <addaction name="actionDecFT8cycles3" />
      </widget>
-     <addaction name="menuFT8_threads"/>
-     <addaction name="menuDecoding_cycles"/>
-     <addaction name="menuQSO_RX_freq_sensitivity"/>
-     <addaction name="menuDecoder_sensitivity"/>
-     <addaction name="menuDecoder_start"/>
-     <addaction name="separator"/>
-     <addaction name="actionFT8WidebandDXCallSearch"/>
-     <addaction name="actionHide_FT8_dupe_messages"/>
-     <addaction name="actionNo_MTD_a8_decodes"/>
+     <addaction name="menuFT8_threads" />
+     <addaction name="menuDecoding_cycles" />
+     <addaction name="menuQSO_RX_freq_sensitivity" />
+     <addaction name="menuDecoder_sensitivity" />
+     <addaction name="menuDecoder_start" />
+     <addaction name="separator" />
+     <addaction name="actionFT8WidebandDXCallSearch" />
+     <addaction name="actionHide_FT8_dupe_messages" />
+     <addaction name="actionNo_MTD_a8_decodes" />
     </widget>
     <widget class="QMenu" name="menuQMAP_source">
      <property name="title">
       <string>WS-MAP/EME65 source</string>
      </property>
-     <addaction name="actionQmapSourceAuto"/>
-     <addaction name="actionQmapSource1"/>
-     <addaction name="actionQmapSource2"/>
-     <addaction name="actionQmapSource3"/>
-     <addaction name="actionQmapSource4"/>
+     <addaction name="actionQmapSourceAuto" />
+     <addaction name="actionQmapSource1" />
+     <addaction name="actionQmapSource2" />
+     <addaction name="actionQmapSource3" />
+     <addaction name="actionQmapSource4" />
     </widget>
-    <addaction name="actionQuickDecode"/>
-    <addaction name="actionMediumDecode"/>
-    <addaction name="actionDeepestDecode"/>
-    <addaction name="separator"/>
-    <addaction name="actionUse_multithreaded_FT8_decoder"/>
-    <addaction name="menuParameters"/>
-    <addaction name="separator"/>
-    <addaction name="actionInclude_averaging"/>
-    <addaction name="actionInclude_correlation"/>
-    <addaction name="actionEnable_AP_FT8"/>
-    <addaction name="actionEnable_AP_JT65"/>
-    <addaction name="actionEnable_AP_DXcall"/>
-    <addaction name="actionAuto_Clear_Avg"/>
-    <addaction name="separator"/>
-    <addaction name="actionAccept_QMAP_click_events"/>
-    <addaction name="actionClaimQmapClicks"/>
-    <addaction name="menuQMAP_source"/>
-    <addaction name="actionDisable_clicks_on_waterfall"/>
-    <addaction name="separator"/>
-    <addaction name="actionHide_AP_info"/>
-    <addaction name="actionReduce_false_decodes"/>
-    <addaction name="separator"/>
-    <addaction name="actionFull_Duplex_Mode"/>
+    <addaction name="actionQuickDecode" />
+    <addaction name="actionMediumDecode" />
+    <addaction name="actionDeepestDecode" />
+    <addaction name="separator" />
+    <addaction name="actionUse_multithreaded_FT8_decoder" />
+    <addaction name="menuParameters" />
+    <addaction name="separator" />
+    <addaction name="actionInclude_averaging" />
+    <addaction name="actionInclude_correlation" />
+    <addaction name="actionEnable_AP_FT8" />
+    <addaction name="actionEnable_AP_JT65" />
+    <addaction name="actionEnable_AP_DXcall" />
+    <addaction name="actionAuto_Clear_Avg" />
+    <addaction name="separator" />
+    <addaction name="actionAccept_QMAP_click_events" />
+    <addaction name="actionClaimQmapClicks" />
+    <addaction name="menuQMAP_source" />
+    <addaction name="actionDisable_clicks_on_waterfall" />
+    <addaction name="separator" />
+    <addaction name="actionHide_AP_info" />
+    <addaction name="actionReduce_false_decodes" />
+    <addaction name="separator" />
+    <addaction name="actionFull_Duplex_Mode" />
    </widget>
    <widget class="QMenu" name="menuSave">
     <property name="title">
      <string>Save</string>
     </property>
-    <addaction name="actionNone"/>
-    <addaction name="actionSave_decoded"/>
-    <addaction name="actionSave_all"/>
-    <addaction name="actionRemove_after_30days"/>
-    <addaction name="separator"/>
-    <addaction name="actionDon_t_split_ALL_TXT"/>
-    <addaction name="actionSplit_ALL_TXT_yearly"/>
-    <addaction name="actionSplit_ALL_TXT_monthly"/>
-    <addaction name="actionDisable_writing_of_ALL_TXT"/>
-    <addaction name="separator"/>
-    <addaction name="actionDefault_event_logging"/>
-    <addaction name="actionDiagnostic_mode"/>
-    <addaction name="actionDisable_event_logging"/>
+    <addaction name="actionNone" />
+    <addaction name="actionSave_decoded" />
+    <addaction name="actionSave_all" />
+    <addaction name="actionRemove_after_30days" />
+    <addaction name="separator" />
+    <addaction name="actionDon_t_split_ALL_TXT" />
+    <addaction name="actionSplit_ALL_TXT_yearly" />
+    <addaction name="actionSplit_ALL_TXT_monthly" />
+    <addaction name="actionDisable_writing_of_ALL_TXT" />
+    <addaction name="separator" />
+    <addaction name="actionDefault_event_logging" />
+    <addaction name="actionDiagnostic_mode" />
+    <addaction name="actionDisable_event_logging" />
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
      <string>Help</string>
     </property>
-    <addaction name="actionRelease_Notes"/>
-    <addaction name="actionWS_Home_Page"/>
-    <addaction name="separator"/>
-    <addaction name="actionWSJT_X_User_Guide"/>
-    <addaction name="actionFT8_DXpedition_Mode_User_Guide"/>
-    <addaction name="actionSuperFox_User_Guide"/>
-    <addaction name="actionQSG_FST4"/>
-    <addaction name="actionQSG_Q65"/>
-    <addaction name="actionQSG_X250_M3"/>
-    <addaction name="actionQuick_Start_Guide_to_WSJT_X_2_7_and_QMAP"/>
-    <addaction name="download_samples_action"/>
-    <addaction name="actionDownload_EME_Ephemeris_Chart"/>
-    <addaction name="separator"/>
-    <addaction name="actionKeyboard_shortcuts"/>
-    <addaction name="actionSpecial_mouse_commands"/>
-    <addaction name="actionShort_list_of_add_on_prefixes_and_suffixes"/>
-    <addaction name="separator"/>
-    <addaction name="actionRig_Control_Errors"/>
-    <addaction name="actionRecommended_Audio_Settings"/>
-    <addaction name="separator"/>
-    <addaction name="actionCopyright_Notice"/>
-    <addaction name="separator"/>
-    <addaction name="actionAbout"/>
+    <addaction name="actionRelease_Notes" />
+    <addaction name="actionWS_Home_Page" />
+    <addaction name="separator" />
+    <addaction name="actionWSJT_X_User_Guide" />
+    <addaction name="actionFT8_DXpedition_Mode_User_Guide" />
+    <addaction name="actionSuperFox_User_Guide" />
+    <addaction name="actionQSG_FST4" />
+    <addaction name="actionQSG_Q65" />
+    <addaction name="actionQSG_X250_M3" />
+    <addaction name="actionQuick_Start_Guide_to_WSJT_X_2_7_and_QMAP" />
+    <addaction name="download_samples_action" />
+    <addaction name="actionDownload_EME_Ephemeris_Chart" />
+    <addaction name="separator" />
+    <addaction name="actionKeyboard_shortcuts" />
+    <addaction name="actionSpecial_mouse_commands" />
+    <addaction name="actionShort_list_of_add_on_prefixes_and_suffixes" />
+    <addaction name="separator" />
+    <addaction name="actionRig_Control_Errors" />
+    <addaction name="actionRecommended_Audio_Settings" />
+    <addaction name="separator" />
+    <addaction name="actionCopyright_Notice" />
+    <addaction name="separator" />
+    <addaction name="actionAbout" />
    </widget>
    <widget class="QMenu" name="menuMode">
     <property name="title">
      <string>Mode</string>
     </property>
-    <addaction name="actionFST4"/>
-    <addaction name="actionFT2"/>
-    <addaction name="actionFT4"/>
-    <addaction name="actionFT8"/>
-    <addaction name="actionJT4"/>
-    <addaction name="actionJT9"/>
-    <addaction name="actionJT65"/>
-    <addaction name="actionQ65"/>
-    <addaction name="separator"/>
-    <addaction name="actionJTTY"/>
-    <addaction name="actionRTTY"/>
-    <addaction name="actionPSK31"/>
-    <addaction name="actionCW"/>
-    <addaction name="actionMSK144"/>
-    <addaction name="separator"/>
-    <addaction name="actionFST4W"/>
-    <addaction name="actionWSPR"/>
-    <addaction name="separator"/>
-    <addaction name="actionEcho"/>
-    <addaction name="separator"/>
-    <addaction name="actionFreqCal"/>
+    <addaction name="actionFST4" />
+    <addaction name="actionFT2" />
+    <addaction name="actionFT4" />
+    <addaction name="actionFT8" />
+    <addaction name="actionJT4" />
+    <addaction name="actionJT9" />
+    <addaction name="actionJT65" />
+    <addaction name="actionQ65" />
+    <addaction name="separator" />
+    <addaction name="actionJTTY" />
+    <addaction name="actionRTTY" />
+    <addaction name="actionPSK31" />
+    <addaction name="actionCW" />
+    <addaction name="actionMSK144" />
+    <addaction name="separator" />
+    <addaction name="actionFST4W" />
+    <addaction name="actionWSPR" />
+    <addaction name="separator" />
+    <addaction name="actionEcho" />
+    <addaction name="separator" />
+    <addaction name="actionFreqCal" />
    </widget>
    <widget class="QMenu" name="menuConfig">
     <property name="title">
@@ -5684,26 +5662,26 @@ QPushButton[state=&quot;ok&quot;] {
     <property name="title">
      <string>Tools</string>
     </property>
-    <addaction name="actionErase_reference_spectrum"/>
-    <addaction name="actionMeasure_reference_spectrum"/>
-    <addaction name="separator"/>
-    <addaction name="actionMeasure_phase_response"/>
-    <addaction name="view_phase_response_action"/>
-    <addaction name="separator"/>
-    <addaction name="actionFrequency_calibration"/>
-    <addaction name="actionSolve_FreqCal"/>
+    <addaction name="actionErase_reference_spectrum" />
+    <addaction name="actionMeasure_reference_spectrum" />
+    <addaction name="separator" />
+    <addaction name="actionMeasure_phase_response" />
+    <addaction name="view_phase_response_action" />
+    <addaction name="separator" />
+    <addaction name="actionFrequency_calibration" />
+    <addaction name="actionSolve_FreqCal" />
    </widget>
-   <addaction name="menuFile"/>
-   <addaction name="menuConfig"/>
-   <addaction name="menuView"/>
-   <addaction name="menuFilters"/>
-   <addaction name="menuMode"/>
-   <addaction name="menuDecode"/>
-   <addaction name="menuSave"/>
-   <addaction name="menuTools"/>
-   <addaction name="menuHelp"/>
+   <addaction name="menuFile" />
+   <addaction name="menuConfig" />
+   <addaction name="menuView" />
+   <addaction name="menuFilters" />
+   <addaction name="menuMode" />
+   <addaction name="menuDecode" />
+   <addaction name="menuSave" />
+   <addaction name="menuTools" />
+   <addaction name="menuHelp" />
   </widget>
-  <widget class="QStatusBar" name="statusBar"/>
+  <widget class="QStatusBar" name="statusBar" />
   <action name="actionExit">
    <property name="text">
     <string>Exit</string>
@@ -7163,7 +7141,7 @@ QPushButton[state=&quot;ok&quot;] {
    </property>
   </action>
  </widget>
- <layoutdefault spacing="6" margin="11"/>
+ <layoutdefault spacing="6" margin="11" />
  <customwidgets>
   <customwidget>
    <class>DisplayText</class>
@@ -7284,6 +7262,6 @@ QPushButton[state=&quot;ok&quot;] {
   <tabstop>sbSerialNumber</tabstop>
   <tabstop>DX_Call_Button</tabstop>
  </tabstops>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>

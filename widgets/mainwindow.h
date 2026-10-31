@@ -1200,9 +1200,9 @@ private:
   Q_SLOT void on_actionRTTY_triggered();
   Q_SLOT void on_actionPSK31_triggered();
   Q_SLOT void on_actionCW_triggered();
-  Q_SLOT void on_cbIncludeTime_toggled(bool b);
   Q_SLOT void on_comboBoxJttyStyle_currentIndexChanged(int index);
   Q_SLOT void on_comboBoxSubmode_currentIndexChanged(int index);
+  Q_SLOT void on_comboBoxDecoder_currentIndexChanged(int index);
   Q_SLOT void on_cbReverse_toggled(bool checked);
   Q_SLOT void on_sbSquelch_valueChanged(int val);
   void updateConversationalSubmodeControls();
@@ -1331,7 +1331,7 @@ private:
   QTextBlock m_jttyQsoGroupEnd;
   int m_jttyQsoGroupEndPosition {-1};
   bool m_jttyQsoRenderedLowerCase {false};
-  bool m_jttyQsoRenderedIncludeTime {false};
+  bool m_jttyQsoRenderedIncludeTime {true};
   struct JttyDecodeLine
   {
     qint64 messageId {0};
@@ -1362,6 +1362,7 @@ private:
 
   QString m_cwSubmode {"CW-20"};
   int m_cwWpm {20};
+  Cw::DecoderType m_cwDecoderType {Cw::DecoderType::Fldigi};
   bool m_cwReverse {false};
   int m_cwSquelch {5};
   std::unique_ptr<Cw::CwModem> m_cwTxModem;

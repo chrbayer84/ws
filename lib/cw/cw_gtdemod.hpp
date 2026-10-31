@@ -1,6 +1,7 @@
 #ifndef CW_GT_DEMOD_HPP
 #define CW_GT_DEMOD_HPP
 
+#include "cw_demod.hpp"
 #include <string>
 #include <vector>
 #include <complex>
@@ -8,14 +9,6 @@
 #include <cmath>
 
 namespace Cw {
-
-struct CwDecodeResult {
-    std::string text;
-    float frequency_hz = 0.0f;
-    float snr_db = 0.0f;
-    int wpm = 0;
-    bool complete = false;
-};
 
 class CwGtDemod {
 public:
@@ -30,6 +23,7 @@ public:
     void setSquelch(float db);
     void setReverse(bool rev);
     void setAdaptive(bool adaptive);
+    void setToneFrequency(float hz);
 
     void rx_init();
     void rx_process(const float* samples, int count, float center_freq_hz);

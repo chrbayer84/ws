@@ -180,8 +180,7 @@ void MainWindow::jtty_save_wav()
 
 void MainWindow::updateJttyDecodeHeadings()
 {
-  QString const prefix = ui->cbIncludeTime->isChecked()
-    ? QStringLiteral("  UTC  Freq  dB  ") : QStringLiteral("Freq  dB  ");
+  QString const prefix = QStringLiteral("  UTC  Freq  dB  ");
   ui->lh_decodes_headings_label->setText(prefix + tr ("Message"));
   ui->rh_decodes_headings_label->setText(prefix + tr ("Message"));
 }
@@ -206,15 +205,6 @@ int MainWindow::jttySnrForSelectedWord(QString const& word, bool leftPane) const
   return -10;
 }
 
-void MainWindow::on_cbIncludeTime_toggled(bool)
-{
-  if (isConversationalMode()) {
-    updateJttyDecodeHeadings();
-    renderJttyAllFreqLines();
-    renderJttyQsoLines();
-  }
-}
-
 void MainWindow::renderJttyAllFreqLines()
 {
   if (m_jttyAllFreqLines.isEmpty()) return;
@@ -224,10 +214,8 @@ void MainWindow::renderJttyAllFreqLines()
     QString displayLine = formatJttyDecodeLine (
       line.frequency, line.snr, Jtty::wrapMessage (line.text));
     if (ui->cbLowerCase->isChecked ()) displayLine = displayLine.toLower ();
-    if (ui->cbIncludeTime->isChecked ()) {
-      QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
-      if (!time.isEmpty ()) displayLine = time + " " + displayLine;
-    }
+    QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
+    if (!time.isEmpty ()) displayLine = time + " " + displayLine;
     displayLines.append (displayLine);
   }
 
@@ -253,7 +241,7 @@ void MainWindow::renderJttyQsoLines()
 {
   if (m_jttyQsoLines.isEmpty ()) {
     m_jttyQsoRenderedLowerCase = ui->cbLowerCase->isChecked ();
-    m_jttyQsoRenderedIncludeTime = ui->cbIncludeTime->isChecked ();
+    m_jttyQsoRenderedIncludeTime = true;
     return;
   }
 
@@ -275,10 +263,8 @@ void MainWindow::renderJttyQsoLines()
     QString display = formatJttyDecodeLine (
       line.frequency, line.snr, Jtty::wrapMessage (line.text));
     if (ui->cbLowerCase->isChecked ()) display = display.toLower ();
-    if (ui->cbIncludeTime->isChecked ()) {
-      QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
-      if (!time.isEmpty ()) display = time + " " + display;
-    }
+    QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
+    if (!time.isEmpty ()) display = time + " " + display;
     
     // CQ highlighting for QSO pane (matching FT8 shade)
     bool isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ") || line.text.contains(" QRZ ")
@@ -296,7 +282,7 @@ void MainWindow::renderJttyQsoLines()
   m_jttyQsoGroupEndPosition = cursor.position();
   ui->decodedTextBrowser2->setTextCursor(cursor);
   m_jttyQsoRenderedLowerCase = ui->cbLowerCase->isChecked();
-  m_jttyQsoRenderedIncludeTime = ui->cbIncludeTime->isChecked();
+  m_jttyQsoRenderedIncludeTime = true;
 }
 
 
@@ -358,10 +344,8 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
       QString displayLine = formatJttyDecodeLine(
         update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
       if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
-      if (ui->cbIncludeTime->isChecked()) {
-        QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
-        if (!time.isEmpty()) displayLine = time + " " + displayLine;
-      }
+      QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
+      if (!time.isEmpty()) displayLine = time + " " + displayLine;
       QTextCursor cursor = ui->decodedTextBrowser->textCursor();
       cursor.movePosition(QTextCursor::End);
       if (cursor.position() > 0) cursor.insertBlock();
@@ -385,8 +369,7 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   }
 
   bool const qsoDisplayOptionsChanged = !m_jttyQsoLines.isEmpty()
-      && (m_jttyQsoRenderedLowerCase != ui->cbLowerCase->isChecked()
-          || m_jttyQsoRenderedIncludeTime != ui->cbIncludeTime->isChecked());
+      && (m_jttyQsoRenderedLowerCase != ui->cbLowerCase->isChecked());
   bool anyEom {false};
   bool anyLineChanged {false};
   for (auto const& update : updates) {
@@ -518,10 +501,8 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       QString displayLine = formatJttyDecodeLine(
         update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
       if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
-      if (ui->cbIncludeTime->isChecked()) {
-        QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
-        if (!time.isEmpty()) displayLine = time + " " + displayLine;
-      }
+      QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
+      if (!time.isEmpty()) displayLine = time + " " + displayLine;
 
       // 1. All Decodes Pane (Left Pane)
       QTextCursor cursor = ui->decodedTextBrowser->textCursor();
@@ -622,10 +603,8 @@ bool MainWindow::cw_decode(int k, int istart0, int istop)
       QString displayLine = formatJttyDecodeLine(
         update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
       if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
-      if (ui->cbIncludeTime->isChecked()) {
-        QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
-        if (!time.isEmpty()) displayLine = time + " " + displayLine;
-      }
+      QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
+      if (!time.isEmpty()) displayLine = time + " " + displayLine;
 
       // 1. All Decodes Pane (Left Pane)
       QTextCursor cursor = ui->decodedTextBrowser->textCursor();
@@ -753,8 +732,7 @@ bool MainWindow::jtty_decode(int k, int istart0, int istop)
   }
 
   bool const qsoDisplayOptionsChanged = !m_jttyQsoLines.isEmpty()
-      && (m_jttyQsoRenderedLowerCase != ui->cbLowerCase->isChecked()
-          || m_jttyQsoRenderedIncludeTime != ui->cbIncludeTime->isChecked());
+      && (m_jttyQsoRenderedLowerCase != ui->cbLowerCase->isChecked());
   bool anyEom {false};
   bool anyLineChanged {false};
   for (auto const& update : updates) {
@@ -1976,7 +1954,6 @@ void MainWindow::writeJttySettings()
     }
   }
   m_settings->setValue("JTTY_LowerCase",ui->cbLowerCase->isChecked());
-  m_settings->setValue("JTTY_IncludeTime",ui->cbIncludeTime->isChecked());
   m_settings->setValue("RTTY_Submode", m_rttySubmode);
   m_settings->setValue("RTTY_Reverse", m_rttyReverse);
   m_settings->setValue("RTTY_Squelch", m_rttySquelch);
@@ -1989,7 +1966,6 @@ void MainWindow::writeJttySettings()
 void MainWindow::readJttySettings()
 {
   ui->cbLowerCase->setChecked(m_settings->value("JTTY_LowerCase",false).toBool());
-  ui->cbIncludeTime->setChecked(m_settings->value("JTTY_IncludeTime",false).toBool());
   m_rttySubmode = m_settings->value("RTTY_Submode", "RTTY-45").toString();
   m_rttyReverse = m_settings->value("RTTY_Reverse", false).toBool();
   m_rttySquelch = m_settings->value("RTTY_Squelch", 5).toInt();
@@ -2299,6 +2275,8 @@ void MainWindow::updateConversationalSubmodeControls()
 
   if (ui->label_submode) ui->label_submode->setVisible(showStrip);
   if (ui->comboBoxSubmode) ui->comboBoxSubmode->setVisible(showStrip);
+  if (ui->label_decoder) ui->label_decoder->setVisible(showStrip);
+  if (ui->comboBoxDecoder) ui->comboBoxDecoder->setVisible(showStrip);
   if (ui->cbReverse) ui->cbReverse->setVisible(showStrip);
   if (ui->label_squelch) ui->label_squelch->setVisible(showStrip);
   if (ui->sbSquelch) ui->sbSquelch->setVisible(showStrip);
@@ -2360,21 +2338,38 @@ void MainWindow::updateConversationalSubmodeControls()
     on_cbReverse_toggled(m_pskReverse);
     on_sbSquelch_valueChanged(m_pskSquelch);
   } else if (isCw) {
-    ui->comboBoxSubmode->addItem("CW (fldigi)");
-    ui->comboBoxSubmode->addItem("CW (gridtracker)");
-    ui->comboBoxSubmode->addItem("CW-5");
-    ui->comboBoxSubmode->addItem("CW-10");
-    ui->comboBoxSubmode->addItem("CW-15");
-    ui->comboBoxSubmode->addItem("CW-20");
-    ui->comboBoxSubmode->addItem("CW-25");
-    ui->comboBoxSubmode->addItem("CW-30");
-    ui->comboBoxSubmode->addItem("CW-35");
-    ui->comboBoxSubmode->addItem("CW-40");
+    ui->comboBoxSubmode->addItem("TX WPM 5");
+    ui->comboBoxSubmode->addItem("TX WPM 10");
+    ui->comboBoxSubmode->addItem("TX WPM 15");
+    ui->comboBoxSubmode->addItem("TX WPM 20");
+    ui->comboBoxSubmode->addItem("TX WPM 25");
+    ui->comboBoxSubmode->addItem("TX WPM 30");
+    ui->comboBoxSubmode->addItem("TX WPM 35");
+    ui->comboBoxSubmode->addItem("TX WPM 40");
 
-    m_cwSubmode = m_settings->value("CW_Submode", "CW-20").toString();
-    int idx = ui->comboBoxSubmode->findText(m_cwSubmode);
-    if (idx < 0) idx = 2; // Default to CW-20 (skip the 2 decoder items)
-    ui->comboBoxSubmode->setCurrentIndex(idx);
+    m_cwWpm = m_settings->value("CW_WPM", 20).toInt();
+    int wpmIdx = m_cwWpm / 5 - 1;
+    if (wpmIdx < 0) wpmIdx = 0;
+    if (wpmIdx > 7) wpmIdx = 7;
+    ui->comboBoxSubmode->blockSignals(true);
+    ui->comboBoxSubmode->setCurrentIndex(wpmIdx);
+    ui->comboBoxSubmode->blockSignals(false);
+
+    ui->comboBoxDecoder->blockSignals(true);
+    if (ui->comboBoxDecoder) {
+        ui->comboBoxDecoder->clear();
+        ui->comboBoxDecoder->addItem("fldigi");
+        ui->comboBoxDecoder->addItem("GT");
+    }
+
+    int decoderIdx = m_settings->value("CW_DecoderType", 0).toInt();
+    if (decoderIdx < 0) decoderIdx = 0;
+    if (decoderIdx > 1) decoderIdx = 1;
+    m_cwDecoderType = static_cast<Cw::DecoderType>(decoderIdx);
+    if (ui->comboBoxDecoder)
+        ui->comboBoxDecoder->setCurrentIndex(decoderIdx);
+    if (ui->comboBoxDecoder)
+        ui->comboBoxDecoder->blockSignals(false);
 
     m_cwReverse = m_settings->value("CW_Reverse", false).toBool();
     if (ui->cbReverse) ui->cbReverse->setChecked(m_cwReverse);
@@ -2382,7 +2377,8 @@ void MainWindow::updateConversationalSubmodeControls()
     m_cwSquelch = m_settings->value("CW_Squelch", 5).toInt();
     if (ui->sbSquelch) ui->sbSquelch->setValue(m_cwSquelch);
 
-    on_comboBoxSubmode_currentIndexChanged(idx);
+    on_comboBoxSubmode_currentIndexChanged(wpmIdx);
+    on_comboBoxDecoder_currentIndexChanged(static_cast<int>(m_cwDecoderType));
     on_cbReverse_toggled(m_cwReverse);
     on_sbSquelch_valueChanged(m_cwSquelch);
   }
@@ -2434,29 +2430,12 @@ void MainWindow::on_comboBoxSubmode_currentIndexChanged(int index)
       m_wideGraph->setPskBaud(m_pskBaud);
     }
   } else if (m_mode == "CW") {
-    // Handle decoder type selection (indices 0 and 1)
-    if (index == 0) {
-      // CW (fldigi) selected
-      m_cwDecoder.setDecoderType(Cw::DecoderType::Fldigi);
-      m_cwSubmode = "CW-20";
-    } else if (index == 1) {
-      // CW (gridtracker) selected
-      m_cwDecoder.setDecoderType(Cw::DecoderType::Gridtracker);
-      m_cwSubmode = "CW-20";
-    } else {
-      m_cwSubmode = submode;
-    }
+    // Submode dropdown controls TX WPM preset only (indices 0-7: TX WPM 5-40)
+    int wpm = (index + 1) * 5;
+    m_cwWpm = wpm;
+    m_cwSubmode = QString("CW-%1").arg(wpm);
+    m_settings->setValue("CW_WPM", m_cwWpm);
     m_settings->setValue("CW_Submode", m_cwSubmode);
-    if (submode == "CW-5") m_cwWpm = 5;
-    else if (submode == "CW-10") m_cwWpm = 10;
-    else if (submode == "CW-15") m_cwWpm = 15;
-    else if (submode == "CW-20") m_cwWpm = 20;
-    else if (submode == "CW-25") m_cwWpm = 25;
-    else if (submode == "CW-30") m_cwWpm = 30;
-    else if (submode == "CW-35") m_cwWpm = 35;
-    else if (submode == "CW-40") m_cwWpm = 40;
-    else m_cwWpm = 20;
-
     m_cwDecoder.setSubmode(m_cwSubmode);
     if (m_cwTxModem) {
       m_cwTxModem->setWpm(m_cwWpm);
@@ -2465,6 +2444,15 @@ void MainWindow::on_comboBoxSubmode_currentIndexChanged(int index)
       m_wideGraph->setCwWpm(m_cwWpm);
     }
   }
+}
+
+void MainWindow::on_comboBoxDecoder_currentIndexChanged(int index)
+{
+  if (m_mode != "CW") return;
+  if (!ui->comboBoxDecoder) return;
+  m_cwDecoderType = static_cast<Cw::DecoderType>(index);
+  m_settings->setValue("CW_DecoderType", static_cast<int>(m_cwDecoderType));
+  m_cwDecoder.setDecoderType(m_cwDecoderType);
 }
 
 void MainWindow::on_cbReverse_toggled(bool checked)

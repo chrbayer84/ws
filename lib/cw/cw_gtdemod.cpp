@@ -46,6 +46,10 @@ void CwGtDemod::setAdaptive(bool adaptive) {
     adaptive_ = adaptive;
 }
 
+void CwGtDemod::setToneFrequency(float hz) {
+    tone_freq_hz_ = clamp_val(hz, 300.0f, 1200.0f);
+}
+
 void CwGtDemod::rx_init() {
     setWpm(wpm_);
     setBandwidth(bandwidth_);
@@ -116,12 +120,9 @@ void CwGtDemod::envelope_detect(const float* samples, int count) {
 }
 
 void CwGtDemod::detect_elements() {
-    const float snr = compute_snr();
-    const float snr_threshold = squelch_db_;
-
     for (int i = 0; i < static_cast<int>(envelope_.size()); ++i) {
         float env = envelope_[i];
-        bool tone_present = (snr > snr_threshold) && (env > noise_floor_ * 2.0f);
+        bool tone_present = env > noise_floor_ * 2.0f;
 
         if (reverse_) tone_present = !tone_present;
 
@@ -279,7 +280,12 @@ void CwGtDemod::flush_decode_buffer() {
     }
 }
 
-void CwGtDemod::rx_process(const float* samples, int count, float /*center_freq_hz*/) {
+void CwGtDemod::rx_process(const float* samples, int count, float center_freq_hz) {
+    if (center_freq_hz != tone_freq_hz_) {
+        setToneFrequency(center_freq_hz);
+        rx_init();
+    }
+    results_.clear();
     const int chunk_size = 512;
 
     for (int offset = 0; offset < count; offset += chunk_size) {

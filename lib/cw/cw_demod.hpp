@@ -30,6 +30,7 @@ public:
     void setSquelch(float db);
     void setReverse(bool rev);
     void setAdaptive(bool adaptive);
+    void setToneFrequency(float hz);
 
     int getWpm() const { return wpm_; }
     int getBandwidth() const { return bandwidth_; }

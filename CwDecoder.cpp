@@ -68,7 +68,7 @@ void Decoder::setSquelch(double s) {
 
 int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
                      qint64 /*stopSample*/, int /*maxSteps*/, int /*lowFrequency*/,
-                     int /*highFrequency*/, float /*centerFrequency*/, float /*tolerance*/) {
+                     int /*highFrequency*/, float centerFrequency, float /*tolerance*/) {
     if (count <= 0) return 0;
 
     std::vector<float> float_samples(count);
@@ -80,7 +80,7 @@ int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
     if (decoder_type_ == DecoderType::Fldigi) {
         multiDemod_fldigi_.process(float_samples.data(), count);
     } else {
-        multiDemod_gt_->rx_process(float_samples.data(), count, 600.0f);
+        multiDemod_gt_->rx_process(float_samples.data(), count, centerFrequency);
     }
 
     nextRequiredSample_ = firstSample + count;

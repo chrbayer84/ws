@@ -40,6 +40,7 @@ void CwMultiDemod::init(int num_channels, float base_freq_hz, float channel_spac
     channel_freqs_.resize(num_channels_);
     for (int i = 0; i < num_channels_; ++i) {
         channel_freqs_[i] = base_freq_hz_ + i * channel_spacing_hz_;
+        demods_[i].setToneFrequency(channel_freqs_[i]);
         demods_[i].rx_init();
         demods_[i].setWpm(20);
     }

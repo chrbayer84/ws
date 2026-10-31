@@ -46,6 +46,10 @@ void CwDemod::setAdaptive(bool adaptive) {
     adaptive_ = adaptive;
 }
 
+void CwDemod::setToneFrequency(float hz) {
+    tone_freq_hz_ = clamp_val(hz, 300.0f, 1200.0f);
+}
+
 void CwDemod::rx_init() {
     setWpm(wpm_);
     setBandwidth(bandwidth_);
@@ -116,12 +120,9 @@ void CwDemod::envelope_detect(const float* samples, int count) {
 }
 
 void CwDemod::detect_elements() {
-    const float snr = compute_snr();
-    const float snr_threshold = squelch_db_;
-
     for (int i = 0; i < static_cast<int>(envelope_.size()); ++i) {
         float env = envelope_[i];
-        bool tone_present = (snr > snr_threshold) && (env > noise_floor_ * 2.0f);
+        bool tone_present = env > noise_floor_ * 2.0f;
 
         if (reverse_) tone_present = !tone_present;
 
