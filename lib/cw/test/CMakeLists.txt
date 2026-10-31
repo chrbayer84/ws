@@ -31,3 +31,11 @@ add_test(NAME test_cw_gt_demod COMMAND test_cw_gt_demod)
 set_tests_properties (test_cw_gt_demod PROPERTIES
   PASS_REGULAR_EXPRESSION "test_cw_gt_demod: all checks passed"
 )
+
+# New: Full alphabet (A-Z, 0-9) decode test at multiple WPM speeds
+add_executable(test_cw_alphabet_full test_cw_alphabet_full.cpp)
+target_link_libraries(test_cw_alphabet_full PRIVATE cw_modem ${FFTW3_LIBRARIES})
+add_test(NAME test_cw_alphabet_full COMMAND test_cw_alphabet_full)
+set_tests_properties (test_cw_alphabet_full PROPERTIES
+  PASS_REGULAR_EXPRESSION "test_cw_alphabet_full: all checks passed"
+)

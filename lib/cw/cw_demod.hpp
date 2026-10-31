@@ -67,7 +67,7 @@ private:
     float compute_snr();
 
     int wpm_ = 20;
-    int bandwidth_ = 100;
+    int bandwidth_ = 50;
     float squelch_db_ = 5.0f;
     bool reverse_ = false;
     bool adaptive_ = true;

@@ -140,9 +140,9 @@ void CwDemod::envelope_detect(const float* samples, int count) {
 }
 
 void CwDemod::detect_elements(int count) {
-    // Use adaptive threshold: minimum of 0.15 and 3x noise floor.
-    // This prevents noise from being decoded while allowing weak CW signals.
-    float threshold = std::max(0.15f, noise_floor_ * 3.0f);
+    // Use adaptive threshold: lower absolute minimum, stronger noise floor multiplier.
+    // Prevents noise from being decoded while allowing weak CW signals through.
+    float threshold = std::max(0.05f, noise_floor_ * 4.0f);
 
     for (int i = 0; i < count; ++i) {
         float env = envelope_[i];
@@ -165,7 +165,7 @@ void CwDemod::detect_elements(int count) {
             case RxState::IN_TONE:
                 if (!tone_present) {
                     int tone_duration = samples_processed_ + i - tone_start_sample_;
-                    if (tone_duration > dot_samples_ / 4) {
+                    if (tone_duration > dot_samples_ / 3) {
                         elements_.push_back({true, tone_duration, signal_peak_});
                     }
                     state_ = RxState::AFTER_TONE;
@@ -180,7 +180,7 @@ void CwDemod::detect_elements(int count) {
             case RxState::AFTER_TONE:
                 if (tone_present) {
                     int space_duration = samples_processed_ + i - silence_start_sample_;
-                    if (space_duration > dot_samples_ / 4) {
+                    if (space_duration > dot_samples_ / 3) {
                         elements_.push_back({false, space_duration, noise_floor_});
                     }
                     state_ = RxState::IN_TONE;
@@ -304,7 +304,13 @@ void CwDemod::flush_decode_buffer() {
     }
 }
 
-void CwDemod::rx_process(const float* samples, int count, float /*center_freq_hz*/) {
+void CwDemod::rx_process(const float* samples, int count, float center_freq_hz) {
+    // Re-initialize filter if center frequency changed significantly
+    if (std::abs(center_freq_hz - tone_freq_hz_) > 1.0f) {
+        setToneFrequency(center_freq_hz);
+        rx_init();
+    }
+
     const int chunk_size = 512;
 
     for (int offset = 0; offset < count; offset += chunk_size) {

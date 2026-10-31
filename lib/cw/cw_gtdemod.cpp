@@ -140,9 +140,12 @@ void CwGtDemod::envelope_detect(const float* samples, int count) {
 }
 
 void CwGtDemod::detect_elements(int count) {
+    // Use adaptive threshold: lower absolute minimum, stronger noise floor multiplier.
+    float threshold = std::max(0.05f, noise_floor_ * 4.0f);
+
     for (int i = 0; i < count; ++i) {
         float env = envelope_[i];
-        bool tone_present = env > 0.15f;
+        bool tone_present = env > threshold;
 
         if (reverse_) tone_present = !tone_present;
 
@@ -161,7 +164,7 @@ void CwGtDemod::detect_elements(int count) {
             case RxState::IN_TONE:
                 if (!tone_present) {
                     int tone_duration = samples_processed_ + i - tone_start_sample_;
-                    if (tone_duration > dot_samples_ / 4) {
+                    if (tone_duration > dot_samples_ / 3) {
                         elements_.push_back({true, tone_duration, signal_peak_});
                     }
                     state_ = RxState::AFTER_TONE;
@@ -176,7 +179,7 @@ void CwGtDemod::detect_elements(int count) {
             case RxState::AFTER_TONE:
                 if (tone_present) {
                     int space_duration = samples_processed_ + i - silence_start_sample_;
-                    if (space_duration > dot_samples_ / 4) {
+                    if (space_duration > dot_samples_ / 3) {
                         elements_.push_back({false, space_duration, noise_floor_});
                     }
                     state_ = RxState::IN_TONE;

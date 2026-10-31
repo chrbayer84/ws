@@ -14,14 +14,14 @@ void Decoder::reinit() {
     if (decoder_type_ == DecoderType::Fldigi) {
         multiDemod_fldigi_.init(16, 300.0f, 50.0f);
         multiDemod_fldigi_.setWpm(20);
-        multiDemod_fldigi_.setBandwidth(100);
+        multiDemod_fldigi_.setBandwidth(50);
         multiDemod_fldigi_.setSquelch(5.0);
         multiDemod_fldigi_.setAdaptive(true);
         multiDemod_fldigi_.setReverse(false);
     } else {
         // Gridtracker decoder
         multiDemod_gt_->setWpm(20);
-        multiDemod_gt_->setBandwidth(100);
+        multiDemod_gt_->setBandwidth(50);
         multiDemod_gt_->setSquelch(5.0f);
         multiDemod_gt_->setAdaptive(true);
         multiDemod_gt_->setReverse(false);
@@ -78,7 +78,7 @@ int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
 
     // Process with the selected decoder
     if (decoder_type_ == DecoderType::Fldigi) {
-        multiDemod_fldigi_.process(float_samples.data(), count);
+        multiDemod_fldigi_.process(float_samples.data(), count, centerFrequency);
     } else {
         multiDemod_gt_->rx_process(float_samples.data(), count, centerFrequency);
     }

@@ -46,9 +46,11 @@ void CwMultiDemod::init(int num_channels, float base_freq_hz, float channel_spac
     }
 }
 
-void CwMultiDemod::process(const float* samples, int count) {
+void CwMultiDemod::process(const float* samples, int count, float centerFrequency) {
+    float offset = centerFrequency - base_freq_hz_;
     for (int ch = 0; ch < num_channels_; ++ch) {
-        demods_[ch].rx_process(samples, count, channel_freqs_[ch]);
+        float adjustedFreq = channel_freqs_[ch] + offset;
+        demods_[ch].rx_process(samples, count, adjustedFreq);
     }
 }
 

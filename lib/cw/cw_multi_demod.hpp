@@ -31,7 +31,7 @@ public:
     void setAdaptive(bool adaptive);
 
     void init(int num_channels, float base_freq_hz, float channel_spacing_hz);
-    void process(const float* samples, int count);
+    void process(const float* samples, int count, float centerFrequency = 0.0f);
     std::vector<CwMultiDemodResult> get_results();
 
     int getNumChannels() const { return num_channels_; }
