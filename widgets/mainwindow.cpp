@@ -2358,11 +2358,9 @@ void MainWindow::readSettings()
     QString const convMode = m_mode;
     on_actionFT8_triggered();
     QTimer::singleShot (2500, [=] {
-      if (convMode == "RTTY") {
-        on_actionRTTY_triggered();
-      } else {
-        on_actionJTTY_triggered();
-      }
+      // Restore the mode that was actually saved (CW, PSK31, JTTY or RTTY),
+      // not just RTTY-vs-JTTY.
+      set_mode(convMode);
     });
   }
   outBufSize=m_settings->value("OutBufSize",4096).toInt();
