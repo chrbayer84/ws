@@ -1820,6 +1820,7 @@ void MainWindow::writeSettings()
 
   m_settings->beginGroup("Common");
   m_settings->setValue("Mode",m_mode);
+  m_wideGraph->saveSettings();
   m_settings->setValue("JTTY_FTol",ui->sbFtol_2->value());
   m_settings->setValue("SaveNone",ui->actionNone->isChecked());
   m_settings->setValue("SaveDecoded",ui->actionSave_decoded->isChecked());
