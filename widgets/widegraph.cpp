@@ -98,9 +98,11 @@ WideGraph::WideGraph(QSettings * settings, QWidget *parent) :
     for (const QString& k : keys)
         m_nsmoByMode[k] = m_settings->value(k).toInt();
     m_settings->endGroup();
-    //CW defaults: no averaging so dits/dahs are individually visible
-    if (!m_waterfallAvgByMode.contains("CW")) m_waterfallAvgByMode["CW"] = 1;
-    if (!m_nsmoByMode.contains("CW")) m_nsmoByMode["CW"] = 1;
+    //CW defaults: no averaging so dits/dahs are individually visible.
+    //Set unconditionally so a stale persisted value (e.g. from the earlier
+    //per-mode save bug) can't leave CW averaged at startup.
+    m_waterfallAvgByMode["CW"] = 1;
+    m_nsmoByMode["CW"] = 1;
     //Non-CW defaults
     if (!m_waterfallAvgByMode.contains("FT8")) m_waterfallAvgByMode["FT8"] = 2;
     if (!m_nsmoByMode.contains("FT8")) m_nsmoByMode["FT8"] = 1;
