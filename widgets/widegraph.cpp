@@ -617,6 +617,13 @@ void WideGraph::setMode(QString mode)                              //setMode
   m_waterfallAvgByMode[m_mode] = m_waterfallAvg;
   m_nsmoByMode[m_mode] = m_nsmo;
 
+  bool const modeChanged = (m_mode != mode);
+  // Switch m_mode *before* touching the spin boxes below: their
+  // valueChanged handlers write the new value into m_waterfallAvgByMode[m_mode],
+  // so m_mode must already be the target mode or we would clobber the
+  // previous mode's saved value with the new mode's setting.
+  m_mode = mode;
+
   // Load the new mode's saved values (or defaults)
   if (m_waterfallAvgByMode.contains(mode)) {
     m_waterfallAvg = m_waterfallAvgByMode[mode];
@@ -639,10 +646,9 @@ void WideGraph::setMode(QString mode)                              //setMode
   // Wipe callsign overlay when operator changes mode (FT8→FT4 etc.).
   // Old labels at FT8 audio offsets aren't meaningful in FT4 framing
   // and would just clutter the new view.
-  if (m_mode != mode) {
+  if (modeChanged) {
     clearDecodeLabels();
   }
-  m_mode=mode;
   ui->fSplitSpinBox->setVisible(m_mode.startsWith("FST4"));
   ui->fSplitSpinBox->setEnabled(m_mode.startsWith("FST4"));
   ui->labTime->setVisible(!m_mode.startsWith("FST4"));
