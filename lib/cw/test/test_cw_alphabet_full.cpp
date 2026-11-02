@@ -7,12 +7,59 @@
 #include "cw_modem.hpp"
 #include "cw_demod.hpp"
 #include "cw_gtdemod.hpp"
+#include <algorithm>
 #include <cassert>
 #include <iostream>
 #include <vector>
 #include <string>
 
 using namespace Cw;
+
+// Feed a transmitted signal the way the receiver sees it: continuous audio
+// with silence before and after the transmission, delivered in small blocks.
+// This lets the streaming decoders warm up and close their last character on
+// the trailing gap.
+static std::string feed_fldigi(CwDemod& demod, CwModem& modem, const std::string& text) {
+    const int max_samples = 12000 * 45;
+    std::vector<float> tx_signal(max_samples);
+    int generated = modem.tx_process(tx_signal.data(), max_samples, text);
+    if (generated <= 0) return {};
+
+    std::vector<float> rx;
+    rx.reserve(12000 + generated + 12000);
+    rx.insert(rx.end(), 12000, 0.0f);
+    rx.insert(rx.end(), tx_signal.begin(), tx_signal.begin() + generated);
+    rx.insert(rx.end(), 12000, 0.0f);
+
+    std::string decoded;
+    for (size_t off = 0; off < rx.size(); off += 1024) {
+        int n = static_cast<int>(std::min<size_t>(1024, rx.size() - off));
+        demod.rx_process(rx.data() + off, n, 600.0f);
+        for (const auto& r : demod.get_results()) decoded += r.text;
+    }
+    return decoded;
+}
+
+static std::string feed_gt(CwGtDemod& demod, CwModem& modem, const std::string& text) {
+    const int max_samples = 12000 * 45;
+    std::vector<float> tx_signal(max_samples);
+    int generated = modem.tx_process(tx_signal.data(), max_samples, text);
+    if (generated <= 0) return {};
+
+    std::vector<float> rx;
+    rx.reserve(12000 + generated + 12000);
+    rx.insert(rx.end(), 12000, 0.0f);
+    rx.insert(rx.end(), tx_signal.begin(), tx_signal.begin() + generated);
+    rx.insert(rx.end(), 12000, 0.0f);
+
+    std::string decoded;
+    for (size_t off = 0; off < rx.size(); off += 1024) {
+        int n = static_cast<int>(std::min<size_t>(1024, rx.size() - off));
+        demod.rx_process(rx.data() + off, n, 600.0f);
+        for (const auto& r : demod.get_results()) decoded += r.text;
+    }
+    return decoded;
+}
 
 // Test fldigi (CwDemod) decode at given WPM
 bool test_fldigi_wpm(int wpm, const std::string& input_text, bool verbose) {
@@ -27,23 +74,7 @@ bool test_fldigi_wpm(int wpm, const std::string& input_text, bool verbose) {
     modem.setWpm(wpm);
     modem.setToneFrequency(600.0f);
 
-    const int max_samples = 12000 * 3;
-    std::vector<float> tx_signal(max_samples);
-
-    int generated = modem.tx_process(tx_signal.data(), max_samples, input_text);
-    if (generated <= 0) {
-        if (verbose) std::cout << "    WPM " << wpm << " input '" << input_text << "': FAIL (no signal generated)" << std::endl;
-        return false;
-    }
-
-    std::vector<float> demo_signal(tx_signal.begin(), tx_signal.begin() + generated);
-    demod.rx_process(demo_signal.data(), generated, 600.0f);
-
-    auto results = demod.get_results();
-    std::string decoded;
-    for (const auto& r : results) {
-        decoded += r.text;
-    }
+    std::string decoded = feed_fldigi(demod, modem, input_text);
 
     // Validation: decoded must be non-empty
     // For single-char input, 1 char decode is correct
@@ -62,29 +93,14 @@ bool test_gt_wpm(int wpm, const std::string& input_text, bool verbose) {
     demod.setBandwidth(50);
     demod.setSquelch(3.0f);
     demod.setAdaptive(true);
+    demod.setRange(150, 3000);
     demod.rx_init();
 
     CwModem modem;
     modem.setWpm(wpm);
     modem.setToneFrequency(600.0f);
 
-    const int max_samples = 12000 * 3;
-    std::vector<float> tx_signal(max_samples);
-
-    int generated = modem.tx_process(tx_signal.data(), max_samples, input_text);
-    if (generated <= 0) {
-        if (verbose) std::cout << "    WPM " << wpm << " input '" << input_text << "': FAIL (no signal generated)" << std::endl;
-        return false;
-    }
-
-    std::vector<float> demo_signal(tx_signal.begin(), tx_signal.begin() + generated);
-    demod.rx_process(demo_signal.data(), generated, 600.0f);
-
-    auto results = demod.get_results();
-    std::string decoded;
-    for (const auto& r : results) {
-        decoded += r.text;
-    }
+    std::string decoded = feed_gt(demod, modem, input_text);
 
     bool success = !decoded.empty() &&
         (input_text.size() <= 1 || decoded.length() >= 2);
@@ -167,6 +183,10 @@ int main()
     std::cout << (all_passed ? "ALL TESTS PASSED - Full alphabet decode verified!" :
       "SOME TESTS FAILED") << std::endl;
     std::cout << "==================================================" << std::endl;
+
+    if (all_passed) {
+        std::cout << "test_cw_alphabet_full: all checks passed" << std::endl;
+    }
 
     return all_passed ? 0 : 1;
 }

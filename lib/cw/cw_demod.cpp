@@ -2,18 +2,50 @@
 #include "cw_morse_table.hpp"
 #include <cmath>
 #include <algorithm>
-#include <numeric>
 
 namespace Cw {
 
+namespace {
+
 template <typename T>
-static inline T clamp_val(T v, T lo, T hi) {
+inline T clamp_val(T v, T lo, T hi) {
     return std::max(lo, std::min(v, hi));
 }
 
+// Split a set of durations into two clusters and return the cluster means.
+// Returns false when the spread doesn't look bimodal (e.g. all dits).
+bool split_two(const std::deque<int>& v, float min_ratio, float& low, float& high) {
+    if (v.size() < 2) return false;
+    int mn = *std::min_element(v.begin(), v.end());
+    int mx = *std::max_element(v.begin(), v.end());
+    if (mn <= 0) return false;
+    if (static_cast<float>(mx) / static_cast<float>(mn) < min_ratio) return false;
+
+    float a = static_cast<float>(mn);
+    float b = static_cast<float>(mx);
+    for (int iter = 0; iter < 8; ++iter) {
+        float sa = 0.0f, sb = 0.0f;
+        int na = 0, nb = 0;
+        for (int x : v) {
+            if (std::abs(x - a) < std::abs(x - b)) {
+                sa += x;
+                ++na;
+            } else {
+                sb += x;
+                ++nb;
+            }
+        }
+        if (na) a = sa / na;
+        if (nb) b = sb / nb;
+    }
+    low = std::min(a, b);
+    high = std::max(a, b);
+    return true;
+}
+
+} // namespace
+
 CwDemod::CwDemod() {
-    filtered_samples_.resize(FFT_SIZE);
-    envelope_.resize(FFT_SIZE);
     rx_init();
 }
 
@@ -21,13 +53,10 @@ CwDemod::~CwDemod() = default;
 
 void CwDemod::setWpm(int wpm) {
     wpm_ = clamp_val(wpm, 5, 50);
-    const double dot_sec = 1.2 / wpm_;
-    dot_samples_ = static_cast<int>(dot_sec * SAMPLE_RATE + 0.5);
+    dot_samples_ = static_cast<int>(14400.0 / wpm_ + 0.5);
     dash_samples_ = dot_samples_ * 3;
-    elem_space_samples_ = dot_samples_;
-    char_space_samples_ = dot_samples_ * 3;
-    word_space_samples_ = dot_samples_ * 7;
-    two_dots_samples_ = dot_samples_ * 2;
+    char_gap_samples_ = dot_samples_ * 2;
+    word_gap_samples_ = dot_samples_ * 5;
 }
 
 void CwDemod::setBandwidth(int hz) {
@@ -47,73 +76,35 @@ void CwDemod::setAdaptive(bool adaptive) {
 }
 
 void CwDemod::setToneFrequency(float hz) {
-    tone_freq_hz_ = clamp_val(hz, 300.0f, 1200.0f);
+    tone_freq_hz_ = clamp_val(hz, 50.0f, 6000.0f);
 }
 
 void CwDemod::rx_init() {
     setWpm(wpm_);
-    setBandwidth(bandwidth_);
 
-    // Design bandpass filter (2nd order Butterworth)
-    float fc = tone_freq_hz_ / SAMPLE_RATE;
-    float bw = bandwidth_ / static_cast<float>(SAMPLE_RATE);
-    float R = std::tan(M_PI * bw);
-    float C = std::cos(2.0f * M_PI * fc);
-    float D = 2.0f * C;
-    float beta_num = 1.0f - R;
-    float beta_den = 1.0f + R;
-    float beta = 0.5f * beta_num / beta_den;
-    float gamma = (0.5f + beta) * C;
-    float alpha = (0.5f + beta - gamma) / 0.5f;
+    nco_step_ = 2.0 * M_PI * static_cast<double>(tone_freq_hz_) / SAMPLE_RATE;
+    nco_phase_ = 0.0;
 
-    bp_filter_.b0 = alpha;
-    bp_filter_.b1 = 0.0f;
-    bp_filter_.b2 = -alpha;
-    bp_filter_.a1 = -D * beta;
-    bp_filter_.a2 = 2.0f * beta;
+    float lp_fc = std::max(60.0f, static_cast<float>(bandwidth_));
+    lp_alpha_ = 1.0f - std::exp(-2.0f * static_cast<float>(M_PI) * lp_fc / SAMPLE_RATE);
 
-    // Normalize bandpass filter to unity gain at center frequency
-    float w0 = 2.0f * M_PI * fc;
-    float z_cos = std::cos(w0);
-    float z_sin = std::sin(w0);
-    float cos2 = std::cos(2.0f * w0);
-    float sin2 = std::sin(2.0f * w0);
-    float num_real = bp_filter_.b0 + bp_filter_.b2 * cos2;
-    float num_imag = -bp_filter_.b2 * sin2;
-    float num_mag = std::sqrt(num_real * num_real + num_imag * num_imag);
-    float den_real = 1.0f + bp_filter_.a1 * z_cos + bp_filter_.a2 * cos2;
-    float den_imag = -bp_filter_.a1 * z_sin - bp_filter_.a2 * sin2;
-    float den_mag = std::sqrt(den_real * den_real + den_imag * den_imag);
-    float gain = num_mag / den_mag;
-    if (gain > 0.0f) {
-        float inv_gain = 1.0f / gain;
-        bp_filter_.b0 *= inv_gain;
-        bp_filter_.b1 *= inv_gain;
-        bp_filter_.b2 *= inv_gain;
-    }
-    bp_filter_.reset();
+    lp_i_ = 0.0f;
+    lp_q_ = 0.0f;
+    noise_ = 0.001f;
+    sig_ = 0.0f;
+    key_ = false;
+    last_snr_ = 0.0f;
 
-    // Envelope detector: fast attack, tuned release for CW element separation
-    env_alpha_ = 0.9f;   // attack
-    env_beta_ = 0.95f;   // release
-
-    std::fill(filtered_samples_.begin(), filtered_samples_.end(), 0.0f);
-    std::fill(envelope_.begin(), envelope_.end(), 0.0f);
-    elements_.clear();
+    recent_marks_.clear();
     decode_buffer_.clear();
+    char_weights_.clear();
     results_.clear();
 
     state_ = RxState::IDLE;
     tone_start_sample_ = 0;
     silence_start_sample_ = 0;
-    noise_floor_ = 0.01f;
-    signal_peak_ = 0.0f;
-    env_state_ = 0.0f;
-
-    dot_tracking_ = dot_samples_;
-    dash_tracking_ = dash_samples_;
-    adaptive_count_ = 0;
-
+    char_finalized_ = false;
+    word_added_ = false;
     samples_processed_ = 0;
 }
 
@@ -121,146 +112,164 @@ void CwDemod::reset() {
     rx_init();
 }
 
-void CwDemod::apply_bandpass(const float* samples, int count) {
+void CwDemod::process_samples(const float* samples, int count) {
     for (int i = 0; i < count; ++i) {
-        filtered_samples_[i] = bp_filter_.process(samples[i]);
-    }
-}
+        const float x = samples[i];
 
-void CwDemod::envelope_detect(const float* samples, int count) {
-    for (int i = 0; i < count; ++i) {
-        float x = std::abs(samples[i]);
-        if (x > env_state_) {
-            env_state_ = env_alpha_ * env_state_ + (1.0f - env_alpha_) * x;
+        // Complex down-mix at the tone frequency.
+        const float c = static_cast<float>(std::cos(nco_phase_));
+        const float s = static_cast<float>(std::sin(nco_phase_));
+        nco_phase_ += nco_step_;
+        if (nco_phase_ >= 2.0 * M_PI) nco_phase_ -= 2.0 * M_PI;
+
+        lp_i_ += lp_alpha_ * (x * c - lp_i_);
+        lp_q_ += lp_alpha_ * (-x * s - lp_q_);
+        const float env = 2.0f * std::sqrt(lp_i_ * lp_i_ + lp_q_ * lp_q_);
+
+        // Signal/noise trackers: fast attack on marks, slow release, noise
+        // follows only while the key is up.
+        if (env > sig_) {
+            sig_ += (env - sig_) * 0.15f;
         } else {
-            env_state_ = env_beta_ * env_state_ + (1.0f - env_beta_) * x;
+            sig_ -= (sig_ - env) * 0.010f;
         }
-        envelope_[i] = env_state_;
-    }
-}
+        if (!key_) {
+            const float a = (env < noise_) ? 0.05f : 0.002f;
+            noise_ += (env - noise_) * a;
+        }
 
-void CwDemod::detect_elements(int count) {
-    // Use adaptive threshold: lower absolute minimum, stronger noise floor multiplier.
-    // Prevents noise from being decoded while allowing weak CW signals through.
-    float threshold = std::max(0.05f, noise_floor_ * 4.0f);
+        const float span = sig_ - noise_;
+        bool t = false;
+        if (sig_ > noise_ * 2.5f && span > 0.0005f) {
+            const float hi = noise_ + span * 0.55f;
+            const float lo = noise_ + span * 0.40f;
+            t = key_ ? (env > lo) : (env > hi);
+        }
+        if (reverse_) t = !t;
 
-    for (int i = 0; i < count; ++i) {
-        float env = envelope_[i];
-        bool tone_present = env > threshold;
+        const bool prev = key_;
+        key_ = t;
+        const int absn = samples_processed_ + i;
 
-        if (reverse_) tone_present = !tone_present;
-
-        switch (state_) {
-            case RxState::IDLE:
-                if (tone_present) {
-                    state_ = RxState::IN_TONE;
-                    tone_start_sample_ = samples_processed_ + i;
-                    signal_peak_ = env;
-                } else {
-                    silence_start_sample_ = samples_processed_ + i;
-                    noise_floor_ = noise_floor_ * 0.999f + env * 0.001f;
+        if (t && !prev) {
+            // Key down.
+            if (state_ == RxState::AFTER_TONE) {
+                const int space = absn - silence_start_sample_;
+                if (space >= char_gap_samples_ && !char_finalized_) {
+                    finalize_char();
+                    char_finalized_ = true;
+                    emit_buffer(false);
                 }
-                break;
-
-            case RxState::IN_TONE:
-                if (!tone_present) {
-                    int tone_duration = samples_processed_ + i - tone_start_sample_;
-                    if (tone_duration > dot_samples_ / 3) {
-                        elements_.push_back({true, tone_duration, signal_peak_});
-                    }
-                    state_ = RxState::AFTER_TONE;
-                    silence_start_sample_ = samples_processed_ + i;
-                    signal_peak_ = 0.0f;
-                    noise_floor_ = env;
-                } else {
-                    signal_peak_ = std::max(signal_peak_, env);
+            }
+            state_ = RxState::IN_TONE;
+            tone_start_sample_ = absn;
+            char_finalized_ = false;
+            word_added_ = false;
+            if (sig_ > noise_ * 1.01f) {
+                const float sn = 20.0f * std::log10(sig_ / noise_);
+                last_snr_ += (sn - last_snr_) * 0.2f;
+            }
+        } else if (!t && prev) {
+            // Key up: a mark just ended.
+            const int tone = absn - tone_start_sample_;
+            if (tone > dot_samples_ / 3) {
+                const float ratio = static_cast<float>(tone) / std::max(1, dot_samples_);
+                char_weights_.push_back(ratio > 1.5f ? 1.0f : 0.33f);
+                recent_marks_.push_back(tone);
+                while (recent_marks_.size() > 16) recent_marks_.pop_front();
+                speed_learn();
+            }
+            state_ = RxState::AFTER_TONE;
+            silence_start_sample_ = absn;
+            char_finalized_ = false;
+            word_added_ = false;
+        } else if (!t && state_ == RxState::AFTER_TONE) {
+            // Stay in the gap long enough -> the character is over.
+            const int space = absn - silence_start_sample_;
+            if (!char_finalized_ && space >= char_gap_samples_ && !char_weights_.empty()) {
+                finalize_char();
+                char_finalized_ = true;
+                emit_buffer(false);
+            }
+            if (!word_added_ && space >= word_gap_samples_) {
+                if (decode_buffer_.empty() || decode_buffer_.back() != ' ') {
+                    decode_buffer_ += ' ';
                 }
-                break;
-
-            case RxState::AFTER_TONE:
-                if (tone_present) {
-                    int space_duration = samples_processed_ + i - silence_start_sample_;
-                    if (space_duration > dot_samples_ / 3) {
-                        elements_.push_back({false, space_duration, noise_floor_});
-                    }
-                    state_ = RxState::IN_TONE;
-                    tone_start_sample_ = samples_processed_ + i;
-                    signal_peak_ = env;
-                } else {
-                    noise_floor_ = noise_floor_ * 0.9f + env * 0.1f;
-                }
-                break;
+                word_added_ = true;
+                emit_buffer(true);
+            }
         }
     }
+
     samples_processed_ += count;
 }
 
-float CwDemod::compute_snr() {
-    if (signal_peak_ <= noise_floor_ || noise_floor_ <= 0.0f) return 0.0f;
-    return 10.0f * log10f(signal_peak_ / noise_floor_);
-}
+void CwDemod::speed_learn() {
+    if (!adaptive_ || recent_marks_.empty()) return;
 
-void CwDemod::decode_elements() {
-    std::vector<float> current_char_weights;
+    int new_dot = dot_samples_;
+    int new_dash = dash_samples_;
 
-    for (const auto& elem : elements_) {
-        if (elem.is_tone) {
-            float ratio = static_cast<float>(elem.duration_samples) / dot_samples_;
-            float weight = (ratio > 1.5f) ? 1.0f : 0.33f;
-            current_char_weights.push_back(weight);
-
-            if (adaptive_ && adaptive_count_ < 100) {
-                if (ratio > 1.5f) {
-                    dash_tracking_ = dash_tracking_ * 0.9 + elem.duration_samples * 0.1;
-                } else {
-                    dot_tracking_ = dot_tracking_ * 0.9 + elem.duration_samples * 0.1;
-                }
-                adaptive_count_++;
-                if (adaptive_count_ >= 20) {
-                    dot_samples_ = static_cast<int>(dot_tracking_ + 0.5);
-                    dash_samples_ = static_cast<int>(dash_tracking_ + 0.5);
-                    elem_space_samples_ = dot_samples_;
-                    char_space_samples_ = dot_samples_ * 3;
-                    word_space_samples_ = dot_samples_ * 7;
-                    two_dots_samples_ = dot_samples_ * 2;
-                }
-            }
+    float low = 0.0f, high = 0.0f;
+    if (split_two(recent_marks_, 1.7f, low, high)) {
+        new_dot = static_cast<int>(low + 0.5f);
+        new_dash = static_cast<int>(high + 0.5f);
+    } else {
+        long sum = 0;
+        for (int x : recent_marks_) sum += x;
+        const float mean = static_cast<float>(sum) / static_cast<float>(recent_marks_.size());
+        if (mean > dot_samples_ * 1.8f && mean < dot_samples_ * 4.5f) {
+            new_dash = static_cast<int>(mean + 0.5f);
         } else {
-            int space_ratio = elem.duration_samples / dot_samples_;
-
-            if (space_ratio >= 5) {
-                if (!current_char_weights.empty()) {
-                    decode_buffer_ += match_pattern(current_char_weights);
-                    current_char_weights.clear();
-                }
-                if (!decode_buffer_.empty() && decode_buffer_.back() != ' ') {
-                    decode_buffer_ += ' ';
-                }
-            } else if (space_ratio >= 2) {
-                if (!current_char_weights.empty()) {
-                    decode_buffer_ += match_pattern(current_char_weights);
-                    current_char_weights.clear();
-                }
-            }
+            new_dot = static_cast<int>(mean + 0.5f);
         }
     }
 
-    if (!current_char_weights.empty()) {
-        decode_buffer_ += match_pattern(current_char_weights);
-    }
+    new_dot = clamp_val(new_dot, static_cast<int>(SAMPLE_RATE * 0.024),
+                        static_cast<int>(SAMPLE_RATE * 0.240));
+    new_dash = clamp_val(new_dash,
+                         static_cast<int>(new_dot * 1.7f),
+                         static_cast<int>(new_dot * 4.5f));
 
-    if (!decode_buffer_.empty()) {
-        CwDecodeResult result;
-        result.text = decode_buffer_;
-        result.frequency_hz = tone_freq_hz_;
-        result.wpm = wpm_;
-        result.snr_db = compute_snr();
-        result.complete = false;
-        results_.push_back(result);
+    dot_samples_ = new_dot;
+    dash_samples_ = new_dash;
+    char_gap_samples_ = dot_samples_ * 2;
+    word_gap_samples_ = dot_samples_ * 5;
+
+    const int w = static_cast<int>(14400.0 / dot_samples_ + 0.5);
+    wpm_ = clamp_val(w, 5, 50);
+}
+
+void CwDemod::finalize_char() {
+    if (!char_weights_.empty()) {
+        decode_buffer_ += match_pattern(char_weights_);
+        char_weights_.clear();
+    }
+}
+
+void CwDemod::emit_buffer(bool complete) {
+    if (decode_buffer_.empty()) return;
+
+    const float snr = compute_snr();
+    // Squelch: drop text that doesn't clear the configured SNR, but never
+    // drop before a signal has been measured.
+    if (snr > 0.0f && snr < squelch_db_) {
         decode_buffer_.clear();
+        return;
     }
 
-    elements_.clear();
+    CwDecodeResult result;
+    result.text = decode_buffer_;
+    result.frequency_hz = tone_freq_hz_;
+    result.snr_db = snr;
+    result.wpm = wpm_;
+    result.complete = complete;
+    results_.push_back(result);
+    decode_buffer_.clear();
+}
+
+float CwDemod::compute_snr() const {
+    return last_snr_;
 }
 
 std::string CwDemod::match_pattern(const std::vector<float>& weights) {
@@ -283,7 +292,6 @@ std::string CwDemod::match_pattern(const std::vector<float>& weights) {
         }
     }
 
-    // Reject poor matches (too much error)
     if (best_diff > weights.size() * 0.5f) {
         return "?";
     }
@@ -291,47 +299,18 @@ std::string CwDemod::match_pattern(const std::vector<float>& weights) {
     return best_match;
 }
 
-void CwDemod::flush_decode_buffer() {
-    if (!decode_buffer_.empty()) {
-        CwDecodeResult result;
-        result.text = decode_buffer_;
-        result.frequency_hz = tone_freq_hz_;
-        result.wpm = wpm_;
-        result.snr_db = compute_snr();
-        result.complete = true;
-        results_.push_back(result);
-        decode_buffer_.clear();
-    }
-}
-
 void CwDemod::rx_process(const float* samples, int count, float center_freq_hz) {
-    // Re-initialize filter if center frequency changed significantly
+    if (count <= 0) return;
+
     if (std::abs(center_freq_hz - tone_freq_hz_) > 1.0f) {
         setToneFrequency(center_freq_hz);
         rx_init();
     }
 
-    const int chunk_size = 512;
-
-    for (int offset = 0; offset < count; offset += chunk_size) {
-        int chunk = std::min(chunk_size, count - offset);
-
-        apply_bandpass(samples + offset, chunk);
-        envelope_detect(filtered_samples_.data(), chunk);
-        detect_elements(chunk);
-
-        if (elements_.size() > 10) {
-            decode_elements();
-        }
-    }
-    // Process any remaining elements
-    if (!elements_.empty()) {
-        decode_elements();
-    }
+    process_samples(samples, count);
 }
 
 std::vector<CwDecodeResult> CwDemod::get_results() {
-    flush_decode_buffer();
     auto results = results_;
     results_.clear();
     return results;

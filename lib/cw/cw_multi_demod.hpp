@@ -16,9 +16,12 @@ struct CwMultiDemodResult {
     bool complete = false;
 };
 
+// Array of single-tone demods spread evenly across a receive band. This is the
+// fallback decoder; the GridTracker engine (CwGtDemod) is the primary one and
+// discovers carriers itself.
 class CwMultiDemod {
 public:
-    static constexpr int MAX_CHANNELS = 32;
+    static constexpr int MAX_CHANNELS = 64;
     static constexpr int SAMPLE_RATE = 12000;
 
     CwMultiDemod();
@@ -30,17 +33,20 @@ public:
     void setReverse(bool rev);
     void setAdaptive(bool adaptive);
 
-    void init(int num_channels, float base_freq_hz, float channel_spacing_hz);
-    void process(const float* samples, int count, float centerFrequency = 0.0f);
+    // Chosen channels cover [low_hz, high_hz] with even spacing.
+    void init(int num_channels, float low_hz, float high_hz);
+    void process(const float* samples, int count);
     std::vector<CwMultiDemodResult> get_results();
 
     int getNumChannels() const { return num_channels_; }
-    float getBaseFreq() const { return base_freq_hz_; }
+    float getLowFreq() const { return low_freq_hz_; }
+    float getHighFreq() const { return high_freq_hz_; }
     float getChannelSpacing() const { return channel_spacing_hz_; }
 
 private:
     int num_channels_ = 0;
-    float base_freq_hz_ = 0.0f;
+    float low_freq_hz_ = 0.0f;
+    float high_freq_hz_ = 0.0f;
     float channel_spacing_hz_ = 0.0f;
 
     std::vector<CwDemod> demods_;

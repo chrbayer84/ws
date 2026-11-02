@@ -3,13 +3,20 @@
 
 #include "cw_demod.hpp"
 #include <string>
+#include <unordered_map>
 #include <vector>
-#include <complex>
-#include <deque>
-#include <cmath>
 
 namespace Cw {
 
+// GridTracker2 CW decoder, adapted from gridtracker2/src/wasm/cwdecoder/cwdecoder.c.
+//
+// Unlike the simple single-tone CwDemod, this is a full multi-channel decoder:
+// it builds a spectrum, finds the narrow carriers that stand out of each bin's
+// own noise floor, opens a channel per carrier, mixes each down to 0 Hz,
+// filters it with boxcars, reads the key against an adaptive (QSB-following)
+// threshold and decodes the timing with a speed-learning Morse engine. All
+// channels are decoded at once. Reception speed is always adaptive; the WPM
+// setting only seeds the timing engine and is used for TX elsewhere.
 class CwGtDemod {
 public:
     static constexpr int SAMPLE_RATE = 12000;
@@ -18,12 +25,16 @@ public:
     CwGtDemod();
     ~CwGtDemod();
 
+    // RX speed is adaptive. setWpm only seeds the timing engine.
     void setWpm(int wpm);
-    void setBandwidth(int hz);
-    void setSquelch(float db);
-    void setReverse(bool rev);
-    void setAdaptive(bool adaptive);
-    void setToneFrequency(float hz);
+    void setBandwidth(int hz);      // retained for API parity; GT uses fixed boxcars
+    void setSquelch(float db);      // gate emissions on per-channel SNR (dB)
+    void setReverse(bool rev);      // retained for API parity
+    void setAdaptive(bool adaptive);// always adaptive
+    void setToneFrequency(float hz);// retained for API parity
+
+    // Audio band to scan (Hz). Carriers outside it are ignored.
+    void setRange(int lowHz, int highHz);
 
     void rx_init();
     void rx_process(const float* samples, int count, float center_freq_hz);
@@ -38,79 +49,43 @@ public:
     bool getAdaptive() const { return adaptive_; }
 
 private:
-    enum class RxState {
-        IDLE,
-        IN_TONE,
-        AFTER_TONE
+    struct ChanState {
+        std::string text;
+        float frequency = 0.0f;
+        float snr = 0.0f;
+        int wpm = 0;
+        int slot = -1;
+        bool have = false;
     };
-
-    struct Element {
-        bool is_tone;
-        int duration_samples;
-        float avg_power;
-    };
-
-    void apply_bandpass(const float* samples, int count);
-    void envelope_detect(const float* samples, int count);
-    void detect_elements(int count);
-    void decode_elements();
-    void update_wpm_tracking(int dot_samples, int dash_samples);
-    std::string match_pattern(const std::vector<float>& weights);
-    void flush_decode_buffer();
-    float compute_snr();
 
     int wpm_ = 20;
     int bandwidth_ = 50;
     float squelch_db_ = 5.0f;
     bool reverse_ = false;
     bool adaptive_ = true;
-
-    int dot_samples_ = 0;
-    int dash_samples_ = 0;
-    int elem_space_samples_ = 0;
-    int char_space_samples_ = 0;
-    int word_space_samples_ = 0;
-    int two_dots_samples_ = 0;
-
     float tone_freq_hz_ = 600.0f;
 
-    // Bandpass filter state (2nd order IIR)
-    struct Biquad {
-        float b0, b1, b2, a1, a2;
-        float x1, x2, y1, y2;
-        void reset() { x1 = x2 = y1 = y2 = 0.0f; }
-        float process(float in) {
-            float out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-            x2 = x1; x1 = in;
-            y2 = y1; y1 = out;
-            return out;
-        }
-    };
-    Biquad bp_filter_;
+    int rangeLow_ = 150;
+    int rangeHigh_ = 5400;
+    bool rangeSet_ = false;
 
-    // Envelope detector state
-    float env_state_ = 0.0f;
-    float env_alpha_ = 0.0f;
-    float env_beta_ = 0.0f;
+    bool inited_ = false;
+    float span_ = 5400.0f;
 
-    std::vector<float> filtered_samples_;
-    std::vector<float> envelope_;
+    // GridTracker hands out a monotonically increasing channel id (it grows
+    // past 64 over time), so key our per-channel text by that id and map it to
+    // a collision-free display slot (0..63).
+    std::unordered_map<int, ChanState> states_;
+    std::unordered_map<int, int> id_to_slot_;
+    std::vector<int> slot_owner_; // 64 entries; -1 when free
 
-    std::deque<Element> elements_;
-    std::string decode_buffer_;
-    std::vector<CwDecodeResult> results_;
-
-    RxState state_ = RxState::IDLE;
-    int tone_start_sample_ = 0;
-    int silence_start_sample_ = 0;
-    float noise_floor_ = 0.0f;
-    float signal_peak_ = 0.0f;
-
-    double dot_tracking_ = 0.0;
-    double dash_tracking_ = 0.0;
-    int adaptive_count_ = 0;
-
-    int samples_processed_ = 0;
+    void ensure_init();
+    ChanState& state_for(int id);
+    void free_slot(int id);
+    void reset_slots();
+    void emit_channel(std::vector<CwDecodeResult>& out, int id, bool complete);
+    void release_closed(std::vector<CwDecodeResult>& out);
+    void update_station(int id, float freq, float snr, int wpm);
 };
 
 } // namespace Cw

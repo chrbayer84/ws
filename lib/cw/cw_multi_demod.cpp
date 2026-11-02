@@ -32,25 +32,26 @@ void CwMultiDemod::setAdaptive(bool adaptive) {
     for (auto& d : demods_) d.setAdaptive(adaptive);
 }
 
-void CwMultiDemod::init(int num_channels, float base_freq_hz, float channel_spacing_hz) {
+void CwMultiDemod::init(int num_channels, float low_hz, float high_hz) {
     num_channels_ = clamp_val(num_channels, 1, MAX_CHANNELS);
-    base_freq_hz_ = base_freq_hz;
-    channel_spacing_hz_ = channel_spacing_hz;
+    if (high_hz <= low_hz) high_hz = low_hz + 100.0f;
+    low_freq_hz_ = std::max(0.0f, low_hz);
+    high_freq_hz_ = high_hz;
+    channel_spacing_hz_ = (num_channels_ > 1)
+        ? (high_freq_hz_ - low_freq_hz_) / static_cast<float>(num_channels_ - 1)
+        : 0.0f;
 
     channel_freqs_.resize(num_channels_);
     for (int i = 0; i < num_channels_; ++i) {
-        channel_freqs_[i] = base_freq_hz_ + i * channel_spacing_hz_;
+        channel_freqs_[i] = low_freq_hz_ + i * channel_spacing_hz_;
         demods_[i].setToneFrequency(channel_freqs_[i]);
         demods_[i].rx_init();
-        demods_[i].setWpm(20);
     }
 }
 
-void CwMultiDemod::process(const float* samples, int count, float centerFrequency) {
-    float offset = centerFrequency - base_freq_hz_;
+void CwMultiDemod::process(const float* samples, int count) {
     for (int ch = 0; ch < num_channels_; ++ch) {
-        float adjustedFreq = channel_freqs_[ch] + offset;
-        demods_[ch].rx_process(samples, count, adjustedFreq);
+        demods_[ch].rx_process(samples, count, channel_freqs_[ch]);
     }
 }
 

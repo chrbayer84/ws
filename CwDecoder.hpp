@@ -56,6 +56,9 @@ private:
     CwMultiDemod multiDemod_fldigi_;
     std::unique_ptr<CwGtDemod> multiDemod_gt_;
 
+    int fldigiLow_ { -1 };
+    int fldigiHigh_ { -1 };
+
     struct ChannelState {
         qint64 messageId {0};
         QString text;

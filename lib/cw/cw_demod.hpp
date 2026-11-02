@@ -3,7 +3,6 @@
 
 #include <string>
 #include <vector>
-#include <complex>
 #include <deque>
 
 namespace Cw {
@@ -17,6 +16,15 @@ struct CwDecodeResult {
     int channel = 0;
 };
 
+// Single-tone (fldigi-style) CW demodulator.
+//
+// The audio is mixed to baseband with a complex NCO and the envelope is taken
+// from sqrt(I^2+Q^2), so there is no 2*fc ripple to make the key chatter. The
+// key threshold is level-relative and hysteretic, following signal and noise
+// instead of comparing against a fixed amplitude. Element lengths are learned
+// continuously (no fixed/one-shot speed), and characters are emitted as soon
+// as the inter-element gap says the character is complete, with word spaces
+// flushed on the longer word gap.
 class CwDemod {
 public:
     static constexpr int SAMPLE_RATE = 12000;
@@ -51,20 +59,12 @@ private:
         AFTER_TONE
     };
 
-    struct Element {
-        bool is_tone;
-        int duration_samples;
-        float avg_power;
-    };
-
-    void apply_bandpass(const float* samples, int count);
-    void envelope_detect(const float* samples, int count);
-    void detect_elements(int count);
-    void decode_elements();
-    void update_wpm_tracking(int dot_samples, int dash_samples);
+    void process_samples(const float* samples, int count);
+    void finalize_char();
+    void emit_buffer(bool complete);
+    void speed_learn();
+    float compute_snr() const;
     std::string match_pattern(const std::vector<float>& weights);
-    void flush_decode_buffer();
-    float compute_snr();
 
     int wpm_ = 20;
     int bandwidth_ = 50;
@@ -74,48 +74,36 @@ private:
 
     int dot_samples_ = 0;
     int dash_samples_ = 0;
-    int elem_space_samples_ = 0;
-    int char_space_samples_ = 0;
-    int word_space_samples_ = 0;
-    int two_dots_samples_ = 0;
+    int char_gap_samples_ = 0;
+    int word_gap_samples_ = 0;
 
     float tone_freq_hz_ = 600.0f;
 
-    // Bandpass filter state (2nd order IIR)
-    struct Biquad {
-        float b0, b1, b2, a1, a2;
-        float x1, x2, y1, y2;
-        void reset() { x1 = x2 = y1 = y2 = 0.0f; }
-        float process(float in) {
-            float out = b0 * in + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
-            x2 = x1; x1 = in;
-            y2 = y1; y1 = out;
-            return out;
-        }
-    };
-    Biquad bp_filter_;
+    // Complex down-mixer and low-pass envelope detector.
+    double nco_phase_ = 0.0;
+    double nco_step_ = 0.0;
+    float lp_i_ = 0.0f;
+    float lp_q_ = 0.0f;
+    float lp_alpha_ = 0.05f;
 
-    // Envelope detector state
-    float env_state_ = 0.0f;
-    float env_alpha_ = 0.0f;
-    float env_beta_ = 0.0f;
+    // Level-relative key detector with hysteresis.
+    float noise_ = 0.001f;
+    float sig_ = 0.0f;
+    bool key_ = false;
+    float last_snr_ = 0.0f;
 
-    std::vector<float> filtered_samples_;
-    std::vector<float> envelope_;
+    // Recent mark lengths (samples) for continuous speed learning.
+    std::deque<int> recent_marks_;
 
-    std::deque<Element> elements_;
     std::string decode_buffer_;
+    std::vector<float> char_weights_;
     std::vector<CwDecodeResult> results_;
 
     RxState state_ = RxState::IDLE;
     int tone_start_sample_ = 0;
     int silence_start_sample_ = 0;
-    float noise_floor_ = 0.0f;
-    float signal_peak_ = 0.0f;
-
-    double dot_tracking_ = 0.0;
-    double dash_tracking_ = 0.0;
-    int adaptive_count_ = 0;
+    bool char_finalized_ = false;
+    bool word_added_ = false;
 
     int samples_processed_ = 0;
 };

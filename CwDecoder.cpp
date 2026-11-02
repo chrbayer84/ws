@@ -11,8 +11,10 @@ Decoder::Decoder() {
 Decoder::~Decoder() = default;
 
 void Decoder::reinit() {
+    fldigiLow_ = -1;
+    fldigiHigh_ = -1;
     if (decoder_type_ == DecoderType::Fldigi) {
-        multiDemod_fldigi_.init(16, 300.0f, 50.0f);
+        multiDemod_fldigi_.init(55, 300.0f, 3000.0f);
         multiDemod_fldigi_.setWpm(20);
         multiDemod_fldigi_.setBandwidth(50);
         multiDemod_fldigi_.setSquelch(5.0);
@@ -25,6 +27,8 @@ void Decoder::reinit() {
         multiDemod_gt_->setSquelch(5.0f);
         multiDemod_gt_->setAdaptive(true);
         multiDemod_gt_->setReverse(false);
+        multiDemod_gt_->setRange(300, 3000);
+        multiDemod_gt_->rx_init();
     }
 }
 
@@ -36,7 +40,7 @@ void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int
 
     reinit();
 
-    channels_.assign(16, ChannelState());
+    channels_.assign(64, ChannelState());
     pendingUpdates_.clear();
 }
 
@@ -67,8 +71,8 @@ void Decoder::setSquelch(double s) {
 }
 
 int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
-                     qint64 /*stopSample*/, int /*maxSteps*/, int /*lowFrequency*/,
-                     int /*highFrequency*/, float centerFrequency, float /*tolerance*/) {
+                     qint64 /*stopSample*/, int /*maxSteps*/, int lowFrequency,
+                     int highFrequency, float /*centerFrequency*/, float /*tolerance*/) {
     if (count <= 0) return 0;
 
     std::vector<float> float_samples(count);
@@ -76,11 +80,30 @@ int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
         float_samples[i] = samples[i] / 32768.0f;
     }
 
+    // Decode the whole receive passband, not just a band around the TX tone.
+    // nfa can legitimately be 0, so only clamp the low edge away from DC/hum.
+    int low = std::max(50, lowFrequency);
+    int high = (highFrequency > low + 50) ? highFrequency : low + 2700;
+
     // Process with the selected decoder
     if (decoder_type_ == DecoderType::Fldigi) {
-        multiDemod_fldigi_.process(float_samples.data(), count, centerFrequency);
+        const int reqHigh = high;
+        if (low != fldigiLow_ || reqHigh != fldigiHigh_) {
+            int n = (high - low) / 50 + 1;
+            if (n > CwMultiDemod::MAX_CHANNELS) {
+                // Keep the channels overlapping: no gaps in the covered band.
+                n = CwMultiDemod::MAX_CHANNELS;
+                high = low + (CwMultiDemod::MAX_CHANNELS - 1) * 50;
+            }
+            n = std::max(1, n);
+            multiDemod_fldigi_.init(n, static_cast<float>(low), static_cast<float>(high));
+            fldigiLow_ = low;
+            fldigiHigh_ = reqHigh;
+        }
+        multiDemod_fldigi_.process(float_samples.data(), count);
     } else {
-        multiDemod_gt_->rx_process(float_samples.data(), count, centerFrequency);
+        multiDemod_gt_->setRange(low, high);
+        multiDemod_gt_->rx_process(float_samples.data(), count, 0.0f);
     }
 
     nextRequiredSample_ = firstSample + count;
