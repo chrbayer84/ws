@@ -18,6 +18,7 @@ int cw_max_channels(void);
 int* cw_events(void);
 int cw_event_count(void);
 void cw_events_clear(void);
+char* cw_revision_text(int slot);
 }
 
 namespace Cw {
@@ -170,7 +171,8 @@ void CwGtDemod::update_station(int id, float freq, float snr, int wpm) {
     if (wpm > 0) st.wpm = wpm;
 }
 
-void CwGtDemod::emit_channel(std::vector<CwDecodeResult>& out, int id, bool complete) {
+void CwGtDemod::emit_channel(std::vector<CwDecodeResult>& out, int id, bool complete,
+                             bool replace) {
     auto it = states_.find(id);
     if (it == states_.end()) return;
 
@@ -189,6 +191,7 @@ void CwGtDemod::emit_channel(std::vector<CwDecodeResult>& out, int id, bool comp
     r.wpm = st.wpm > 0 ? st.wpm : wpm_;
     r.channel = st.slot >= 0 ? st.slot : 0;
     r.complete = complete;
+    r.replace = replace;
     out.push_back(r);
     st.text.clear();
 }
@@ -235,7 +238,20 @@ std::vector<CwDecodeResult> CwGtDemod::get_results() {
     for (int i = 0; i < n; ++i) {
         const int id = ev[i * 2];
         const int code = ev[i * 2 + 1];
-        if (code < 0) continue; // revision; the append-only display keeps live text
+        if (code < 0) {
+            // The engine re-reads the transmission as it learns the sender's
+            // speed. The revision holds the corrected whole text and must
+            // replace what we displayed live.
+            const int slot = -code - 1;
+            const char* revised = cw_revision_text(slot);
+            if (revised && *revised) {
+                ChanState& st = state_for(id);
+                st.text = revised;
+                st.have = true;
+                emit_channel(out, id, false, true);
+            }
+            continue;
+        }
 
         if (code == 1) {
             // A new transmission on this channel: the previous one is done.

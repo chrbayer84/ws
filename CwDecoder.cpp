@@ -228,8 +228,13 @@ int Decoder::process(qint16 const* samples, int count, qint64 firstSample,
         for (const auto& r : results) {
             int channel = r.channel;
             if (channel < 0 || channel >= static_cast<int>(channels_.size())) continue;
-            feedText(channel, r.text, r.frequency_hz, r.snr_db, r.wpm,
-                     elapsed_seconds, firstSample);
+            if (r.replace) {
+                replaceText(channel, r.text, r.frequency_hz, r.snr_db, r.wpm,
+                            elapsed_seconds, firstSample);
+            } else {
+                feedText(channel, r.text, r.frequency_hz, r.snr_db, r.wpm,
+                         elapsed_seconds, firstSample);
+            }
             // GT completes on a new transmission / channel close.
             if (r.complete) completeChannel(channel);
         }
@@ -297,6 +302,28 @@ void Decoder::feedText(int channelId, std::string const& text, float frequency,
         ch.idleFrames = 0;
         emitPartial(channelId);
     }
+}
+
+void Decoder::replaceText(int channelId, std::string const& text, float frequency,
+                          float snr, int wpm, double elapsedSeconds, qint64 firstSample) {
+    if (channelId < 0 || channelId >= static_cast<int>(channels_.size())) return;
+
+    ChannelState& ch = channels_[channelId];
+    if (!ch.active) {
+        ch.active = true;
+        ch.messageId = generateMessageId(channelId);
+        ch.startSeconds = elapsedSeconds;
+        ch.idleFrames = 0;
+    }
+    ch.frequency = frequency;
+    ch.snr = snr;
+    ch.wpm = wpm;
+    ch.lastTextSample = firstSample;
+
+    QString revised = QString::fromStdString(text);
+    while (revised.startsWith(' ')) revised.remove(0, 1);
+    ch.text = revised;
+    emitPartial(channelId);
 }
 
 void Decoder::emitPartial(int channelId) {

@@ -90,6 +90,8 @@ private:
     quint32 nextMessageSerial_ {0};
     void feedText(int channelId, std::string const& text, float frequency,
                   float snr, int wpm, double elapsedSeconds, qint64 firstSample);
+    void replaceText(int channelId, std::string const& text, float frequency,
+                     float snr, int wpm, double elapsedSeconds, qint64 firstSample);
     void emitPartial(int channelId);
     void completeChannel(int channelId);
 

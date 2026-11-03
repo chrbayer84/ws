@@ -83,7 +83,8 @@ private:
     ChanState& state_for(int id);
     void free_slot(int id);
     void reset_slots();
-    void emit_channel(std::vector<CwDecodeResult>& out, int id, bool complete);
+    void emit_channel(std::vector<CwDecodeResult>& out, int id, bool complete,
+                      bool replace = false);
     void release_closed(std::vector<CwDecodeResult>& out);
     void update_station(int id, float freq, float snr, int wpm);
 };
