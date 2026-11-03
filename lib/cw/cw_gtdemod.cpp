@@ -68,6 +68,12 @@ void CwGtDemod::setToneFrequency(float hz) {
 void CwGtDemod::setRange(int lowHz, int highHz) {
     if (lowHz < 0) lowHz = 0;
     if (highHz <= lowHz) highHz = lowHz + 100;
+    // Stay a little inside the band edges: the spectral leakage at the very
+    // top/bottom bin otherwise opens a persistent spurious channel.
+    lowHz += 10;
+    highHz -= 25;
+    if (highHz < lowHz + 100) highHz = lowHz + 100;
+    if (rangeSet_ && lowHz == rangeLow_ && highHz == rangeHigh_) return;
     rangeLow_ = lowHz;
     rangeHigh_ = highHz;
     rangeSet_ = true;
@@ -239,9 +245,10 @@ std::vector<CwDecodeResult> CwGtDemod::get_results() {
         if (code > 1) {
             ChanState& st = state_for(id);
             st.text.push_back(static_cast<char>(code));
-            // A word boundary completes a line promptly (not only on idle).
+            // The line continues across word gaps; only the message end
+            // (new transmission / closed channel) completes it.
             if (code == ' ' && st.text.size() >= 2) {
-                emit_channel(out, id, true);
+                emit_channel(out, id, false);
             }
         }
     }

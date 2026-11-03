@@ -25,6 +25,13 @@ target_include_directories(cw_modem PUBLIC
 
 target_compile_features(cw_modem PUBLIC cxx_std_17)
 
+# DeepCW neural decoder (optional at configure time).
+add_subdirectory(deepcw)
+if (TARGET deepcw)
+  target_link_libraries(cw_modem PUBLIC deepcw)
+  target_compile_definitions(cw_modem PUBLIC WSJT_HAVE_DEEPCW=1)
+endif ()
+
 # kissFFT is plain C; keep it warning-quiet from the C++ build flags.
 if (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
   set_source_files_properties(

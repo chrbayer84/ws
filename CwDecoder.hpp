@@ -3,16 +3,21 @@
 
 #include "lib/cw/cw_multi_demod.hpp"
 #include "lib/cw/cw_gtdemod.hpp"
+#ifdef WSJT_HAVE_DEEPCW
+#include "lib/cw/deepcw/deepcw_decoder.hpp"
+#endif
 #include "widgets/JttyMessages.hpp"
 #include <QVector>
 #include <QString>
 #include <QDateTime>
+#include <memory>
 
 namespace Cw {
 
 enum class DecoderType {
     Fldigi,
-    Gridtracker
+    Gridtracker,
+    DeepCw
 };
 
 class Decoder
@@ -44,7 +49,7 @@ public:
     QVector<Jtty::MessageUpdate> takeUpdates();
 
     DecoderType decoderType() const { return decoder_type_; }
-    void setDecoderType(DecoderType type) { decoder_type_ = type; reinit(); }
+    void setDecoderType(DecoderType type);
 
 private:
     DecoderType decoder_type_ = DecoderType::Fldigi;
@@ -55,6 +60,13 @@ private:
 
     CwMultiDemod multiDemod_fldigi_;
     std::unique_ptr<CwGtDemod> multiDemod_gt_;
+
+#ifdef WSJT_HAVE_DEEPCW
+    std::unique_ptr<DeepCw::Decoder> deepcw_;
+    bool deepcw_started_ {false};
+    bool deepcw_failed_ {false};
+    void ensureDeepCwStarted();
+#endif
 
     int fldigiLow_ { -1 };
     int fldigiHigh_ { -1 };
@@ -75,7 +87,11 @@ private:
     QVector<Jtty::MessageUpdate> pendingUpdates_;
 
     qint64 generateMessageId(int channelId);
-    void flushChannelMessage(int channelId, const CwMultiDemodResult& decode, bool complete);
+    quint32 nextMessageSerial_ {0};
+    void feedText(int channelId, std::string const& text, float frequency,
+                  float snr, int wpm, double elapsedSeconds, qint64 firstSample);
+    void emitPartial(int channelId);
+    void completeChannel(int channelId);
 
     void reinit();
 };

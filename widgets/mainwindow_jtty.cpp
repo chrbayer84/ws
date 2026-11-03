@@ -596,51 +596,73 @@ bool MainWindow::cw_decode(int k, int istart0, int istop)
 
   QVector<Jtty::MessageUpdate> updates = m_cwDecoder.takeUpdates();
 
+  // CW is decoded character by character: keep one growing line per message
+  // (and per station on the QSO pane) and re-render it as characters arrive.
   bool anyEom {false};
-  // Process CW decodes (FT8-style: completed lines append to bottom and never mutate)
+  bool allChanged {false};
+  bool qsoChanged {false};
+  float const effectiveTol = qMax(ftol, 25.0f);
+
   for (auto const& update : updates) {
-    if (update.complete && update.text.trimmed().length() >= 2) {
-      QString displayLine = formatJttyDecodeLine(
-        update.frequency, update.snr, Jtty::wrapMessage(update.text.trimmed()));
-      if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
-      QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
-      if (!time.isEmpty()) displayLine = time + " " + displayLine;
+    if (update.text.trimmed().isEmpty()) continue;
 
-      // 1. All Decodes Pane (Left Pane)
-      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
-      cursor.movePosition(QTextCursor::End);
-      if (cursor.position() > 0) cursor.insertBlock();
-
-      // CQ highlighting for All Decodes pane (matching FT8 shade)
-      bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ")
-               || update.text.startsWith("CQ ") || update.text.endsWith(" CQ");
-      QTextCharFormat format;
-      format.setFont(ui->decodedTextBrowser->contentFont());
-      if (isCQ) {
-        format.setBackground(QBrush(cqHighlightBackground(m_config)));
-        format.setForeground(QBrush(cqHighlightForeground(m_config)));
-      }
-      cursor.insertText(displayLine, format);
-      ui->decodedTextBrowser->setTextCursor(cursor);
-      ui->decodedTextBrowser->ensureCursorVisible();
-
-      write_all("Rx", formatJttyDecodeLine(update.frequency, update.snr, update.text.trimmed()),
-                jttyLineDateTimeUtc(update.sequenceStart));
-
-      // 2. QSO Pane (Right Pane): only if on the active RX frequency (+/- tolerance)
-      float const effectiveTol = qMax(ftol, 25.0f);
-      if (std::abs(update.frequency - f0) <= effectiveTol) {
-        QTextCursor qsoCursor = ui->decodedTextBrowser2->textCursor();
-        qsoCursor.movePosition(QTextCursor::End);
-        if (qsoCursor.position() > 0) qsoCursor.insertBlock();
-        qsoCursor.insertText(displayLine, format);
-        ui->decodedTextBrowser2->setTextCursor(qsoCursor);
-        ui->decodedTextBrowser2->ensureCursorVisible();
-        anyEom = true;
-      }
-      m_bDecoded = true;
+    auto allIt = std::find_if(
+        m_jttyAllFreqLines.begin(), m_jttyAllFreqLines.end(),
+        [&update] (JttyDecodeLine const& line) {
+          return line.messageId == update.messageId;
+        });
+    if (allIt == m_jttyAllFreqLines.end()) {
+      JttyDecodeLine line;
+      line.messageId = update.messageId;
+      line.frequency = update.frequency;
+      line.text = update.text;
+      line.sequenceStart = update.sequenceStart;
+      line.messageStartUtc = jttyLineDisplayDateTimeUtc(update.sequenceStart);
+      line.allTxtTime = jttyLineDateTimeUtc(update.sequenceStart);
+      line.snr = update.snr;
+      line.complete = update.complete;
+      m_jttyAllFreqLines.append(line);
+      allIt = m_jttyAllFreqLines.end() - 1;
+    } else {
+      allIt->text = update.text;
+      allIt->frequency = update.frequency;
+      allIt->snr = update.snr;
+      allIt->complete = update.complete;
     }
+    allChanged = true;
+
+    if (std::abs(update.frequency - f0) <= effectiveTol) {
+      auto qsoIt = std::find_if(
+          m_jttyQsoLines.begin(), m_jttyQsoLines.end(),
+          [&update] (JttyQsoLine const& line) {
+            return line.messageId == update.messageId;
+          });
+      if (qsoIt == m_jttyQsoLines.end()) {
+        m_jttyQsoLines.append({update.messageId, update.frequency, update.text,
+                               update.sequenceStart, allIt->messageStartUtc,
+                               update.snr});
+      } else {
+        qsoIt->text = update.text;
+        qsoIt->frequency = update.frequency;
+        qsoIt->snr = update.snr;
+      }
+      qsoChanged = true;
+      if (update.complete) anyEom = true;
+    }
+
+    if (update.complete && !allIt->written) {
+      QString const text = update.text.trimmed();
+      if (!text.isEmpty()) {
+        write_all("Rx", formatJttyDecodeLine(update.frequency, update.snr, text),
+                  allIt->allTxtTime);
+      }
+      allIt->written = true;
+    }
+    m_bDecoded = true;
   }
+
+  if (allChanged) renderJttyAllFreqLines();
+  if (qsoChanged) renderJttyQsoLines();
 
   return anyEom;
 }
@@ -2361,11 +2383,18 @@ void MainWindow::updateConversationalSubmodeControls()
         ui->comboBoxDecoder->clear();
         ui->comboBoxDecoder->addItem("fldigi");
         ui->comboBoxDecoder->addItem("GT");
+#ifdef WSJT_HAVE_DEEPCW
+        ui->comboBoxDecoder->addItem("DeepCW");
+#endif
     }
 
     int decoderIdx = m_settings->value("CW_DecoderType", 0).toInt();
     if (decoderIdx < 0) decoderIdx = 0;
-    if (decoderIdx > 1) decoderIdx = 1;
+    int maxDecoderIdx = 1;
+#ifdef WSJT_HAVE_DEEPCW
+    maxDecoderIdx = 2;
+#endif
+    if (decoderIdx > maxDecoderIdx) decoderIdx = maxDecoderIdx;
     m_cwDecoderType = static_cast<Cw::DecoderType>(decoderIdx);
     if (ui->comboBoxDecoder)
         ui->comboBoxDecoder->setCurrentIndex(decoderIdx);

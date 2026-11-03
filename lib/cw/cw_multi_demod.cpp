@@ -72,7 +72,32 @@ std::vector<CwMultiDemodResult> CwMultiDemod::get_results() {
         }
     }
 
-    return all_results;
+    // A single signal leaks into neighboring 50 Hz channels. Keep only the
+    // strongest channel in a local group so the UI does not show the same
+    // text many times (and weak neighbors' noise decodes are dropped).
+    if (all_results.size() < 2) return all_results;
+
+    const float radius = std::max(50.0f, channel_spacing_hz_ * 1.5f);
+    std::vector<CwMultiDemodResult> filtered;
+    filtered.reserve(all_results.size());
+    for (auto const& r : all_results) {
+        if (r.snr_db <= 0.0f) {
+            filtered.push_back(r);
+            continue;
+        }
+        float best = r.snr_db;
+        for (auto const& other : all_results) {
+            if (&other == &r || other.snr_db <= 0.0f) continue;
+            if (std::abs(other.frequency_hz - r.frequency_hz) <= radius
+                && other.snr_db > best) {
+                best = other.snr_db;
+            }
+        }
+        if (r.snr_db + 1.0f < best) continue;
+        filtered.push_back(r);
+    }
+
+    return filtered;
 }
 
 } // namespace Cw

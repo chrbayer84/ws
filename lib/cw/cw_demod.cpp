@@ -2,6 +2,9 @@
 #include "cw_morse_table.hpp"
 #include <cmath>
 #include <algorithm>
+#ifdef CW_DEBUG
+#include <cstdio>
+#endif
 
 namespace Cw {
 
@@ -85,7 +88,7 @@ void CwDemod::rx_init() {
     nco_step_ = 2.0 * M_PI * static_cast<double>(tone_freq_hz_) / SAMPLE_RATE;
     nco_phase_ = 0.0;
 
-    float lp_fc = std::max(60.0f, static_cast<float>(bandwidth_));
+    float lp_fc = std::max(25.0f, static_cast<float>(bandwidth_) * 0.5f);
     lp_alpha_ = 1.0f - std::exp(-2.0f * static_cast<float>(M_PI) * lp_fc / SAMPLE_RATE);
 
     lp_i_ = 0.0f;
@@ -94,6 +97,11 @@ void CwDemod::rx_init() {
     sig_ = 0.0f;
     key_ = false;
     last_snr_ = 0.0f;
+    pending_key_ = false;
+    pending_key_count_ = 0;
+    glitch_silence_ = 0;
+    glitch_char_finalized_ = false;
+    glitch_word_added_ = false;
 
     recent_marks_.clear();
     decode_buffer_.clear();
@@ -126,33 +134,58 @@ void CwDemod::process_samples(const float* samples, int count) {
         lp_q_ += lp_alpha_ * (-x * s - lp_q_);
         const float env = 2.0f * std::sqrt(lp_i_ * lp_i_ + lp_q_ * lp_q_);
 
-        // Signal/noise trackers: fast attack on marks, slow release, noise
-        // follows only while the key is up.
+        // Signal/noise trackers. `sig_` decays toward the noise floor (not to
+        // zero) and the key threshold keeps a noise-floor margin, so a noisy
+        // space cannot leave the key stuck down.
         if (env > sig_) {
-            sig_ += (env - sig_) * 0.15f;
+            sig_ += (env - sig_) * 0.20f;
         } else {
-            sig_ -= (sig_ - env) * 0.010f;
+            sig_ -= (sig_ - noise_) * 0.003f;
+            if (sig_ < noise_) sig_ = noise_;
         }
-        if (!key_) {
-            const float a = (env < noise_) ? 0.05f : 0.002f;
-            noise_ += (env - noise_) * a;
+        if (env < noise_) {
+            noise_ += (env - noise_) * 0.05f;
+        } else if (!key_) {
+            noise_ += (env - noise_) * 0.0005f;
         }
 
-        const float span = sig_ - noise_;
-        bool t = false;
-        if (sig_ > noise_ * 2.5f && span > 0.0005f) {
-            const float hi = noise_ + span * 0.55f;
-            const float lo = noise_ + span * 0.40f;
-            t = key_ ? (env > lo) : (env > hi);
+        const float span = std::max(0.0f, sig_ - noise_);
+        const float min_span = std::max(noise_ * 4.0f, 0.0005f);
+        bool raw = false;
+        if (span > min_span) {
+            // The envelope of complex Gaussian noise has a long Rayleigh tail;
+            // keep both thresholds several noise standard deviations above the
+            // floor so noise alone cannot toggle the key during spaces.
+            const float hi = noise_ + std::max(span * 0.55f, noise_ * 3.5f);
+            const float lo = noise_ + std::max(span * 0.40f, noise_ * 2.0f);
+            raw = key_ ? (env > lo) : (env > hi);
         }
-        if (reverse_) t = !t;
+        if (reverse_) raw = !raw;
 
+        // Debounce short glitches before they can disturb the gap timers.
         const bool prev = key_;
-        key_ = t;
+        const int debounce = std::max(1, SAMPLE_RATE / 333); // ~3 ms
+        if (raw != key_) {
+            if (raw != pending_key_) {
+                pending_key_ = raw;
+                pending_key_count_ = 0;
+            }
+            if (++pending_key_count_ >= debounce) {
+                key_ = pending_key_;
+                pending_key_count_ = 0;
+            }
+        } else {
+            pending_key_ = key_;
+            pending_key_count_ = 0;
+        }
+        const bool t = key_;
         const int absn = samples_processed_ + i;
 
         if (t && !prev) {
             // Key down.
+            glitch_silence_ = silence_start_sample_;
+            glitch_char_finalized_ = char_finalized_;
+            glitch_word_added_ = word_added_;
             if (state_ == RxState::AFTER_TONE) {
                 const int space = absn - silence_start_sample_;
                 if (space >= char_gap_samples_ && !char_finalized_) {
@@ -170,19 +203,31 @@ void CwDemod::process_samples(const float* samples, int count) {
                 last_snr_ += (sn - last_snr_) * 0.2f;
             }
         } else if (!t && prev) {
-            // Key up: a mark just ended.
+            // Key up: accept real marks, roll back sub-dot noise spikes.
             const int tone = absn - tone_start_sample_;
-            if (tone > dot_samples_ / 3) {
+            const int min_mark = std::max(dot_samples_ / 2,
+                                          static_cast<int>(0.010f * SAMPLE_RATE));
+            if (tone >= min_mark) {
+#ifdef CW_DEBUG
+                std::fprintf(stderr, "MARK %d dot=%d ratio=%.2f\n", tone, dot_samples_,
+                             static_cast<double>(tone) / std::max(1, dot_samples_));
+#endif
                 const float ratio = static_cast<float>(tone) / std::max(1, dot_samples_);
                 char_weights_.push_back(ratio > 1.5f ? 1.0f : 0.33f);
                 recent_marks_.push_back(tone);
                 while (recent_marks_.size() > 16) recent_marks_.pop_front();
                 speed_learn();
+                state_ = RxState::AFTER_TONE;
+                silence_start_sample_ = absn;
+                char_finalized_ = false;
+                word_added_ = false;
+            } else {
+                // Glitch: pretend it never happened; keep the space timer.
+                state_ = RxState::AFTER_TONE;
+                silence_start_sample_ = glitch_silence_;
+                char_finalized_ = glitch_char_finalized_;
+                word_added_ = glitch_word_added_;
             }
-            state_ = RxState::AFTER_TONE;
-            silence_start_sample_ = absn;
-            char_finalized_ = false;
-            word_added_ = false;
         } else if (!t && state_ == RxState::AFTER_TONE) {
             // Stay in the gap long enough -> the character is over.
             const int space = absn - silence_start_sample_;
@@ -205,26 +250,39 @@ void CwDemod::process_samples(const float* samples, int count) {
 }
 
 void CwDemod::speed_learn() {
-    if (!adaptive_ || recent_marks_.empty()) return;
+    if (!adaptive_ || recent_marks_.size() < 4) return;
+
+    // Ignore glitch-short marks and absurd outliers before clustering.
+    std::deque<int> valid;
+    for (int mark : recent_marks_) {
+        if (mark > dot_samples_ / 2 && mark < dot_samples_ * 5) valid.push_back(mark);
+    }
+    if (valid.size() < 4) return;
 
     int new_dot = dot_samples_;
     int new_dash = dash_samples_;
 
     float low = 0.0f, high = 0.0f;
-    if (split_two(recent_marks_, 1.7f, low, high)) {
-        new_dot = static_cast<int>(low + 0.5f);
-        new_dash = static_cast<int>(high + 0.5f);
+    if (split_two(valid, 1.7f, low, high)) {
+        if (low > dot_samples_ * 0.6f && low < dot_samples_ * 1.6f) {
+            new_dot = static_cast<int>(low + 0.5f);
+        }
+        if (high > new_dot * 1.8f) {
+            new_dash = static_cast<int>(high + 0.5f);
+        }
     } else {
         long sum = 0;
-        for (int x : recent_marks_) sum += x;
-        const float mean = static_cast<float>(sum) / static_cast<float>(recent_marks_.size());
-        if (mean > dot_samples_ * 1.8f && mean < dot_samples_ * 4.5f) {
-            new_dash = static_cast<int>(mean + 0.5f);
-        } else {
+        for (int x : valid) sum += x;
+        const float mean = static_cast<float>(sum) / static_cast<float>(valid.size());
+        if (mean > dot_samples_ * 0.6f && mean < dot_samples_ * 1.6f) {
             new_dot = static_cast<int>(mean + 0.5f);
         }
     }
 
+    // Limit each update so a burst of noise cannot drag the speed estimate.
+    new_dot = clamp_val(new_dot,
+                        static_cast<int>(dot_samples_ * 0.75f),
+                        static_cast<int>(dot_samples_ * 1.33f));
     new_dot = clamp_val(new_dot, static_cast<int>(SAMPLE_RATE * 0.024),
                         static_cast<int>(SAMPLE_RATE * 0.240));
     new_dash = clamp_val(new_dash,

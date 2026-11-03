@@ -92,6 +92,13 @@ private:
     bool key_ = false;
     float last_snr_ = 0.0f;
 
+    // Key debounce and glitch rollback (noise spikes must not reset gaps).
+    bool pending_key_ = false;
+    int pending_key_count_ = 0;
+    int glitch_silence_ = 0;
+    bool glitch_char_finalized_ = false;
+    bool glitch_word_added_ = false;
+
     // Recent mark lengths (samples) for continuous speed learning.
     std::deque<int> recent_marks_;
 
