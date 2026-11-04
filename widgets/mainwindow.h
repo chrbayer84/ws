@@ -1276,6 +1276,10 @@ private:
   bool jtty_decode(int k, int istart0 = -1, int istop = -1);
   void renderJttyAllFreqLines();
   void renderJttyQsoLines();
+  void insertJttyDisplayLine(QTextCursor& cursor, QString const& display,
+                             float frequency, bool isCQ, QFont const& font,
+                             QColor const& defaultFg);
+  int jttyStreamColorIndex(float frequency);
   void jtty_again();
   void flushJttyDecodeLines();
   QString jtty_msg_expand(QString msg);
@@ -1358,6 +1362,9 @@ private:
   qint32 m_jttyLastSavedWavK0 = -1;      // m_k0 at last JTTY WAV save; skips saving unchanged audio again
   int m_jttyAllFreqsGroupStartPosition {-1}; // start of the growing group
   int m_jttyAllFreqsGroupEndPosition {-1};   // end of the growing group
+  QHash<int, int> m_jttyStreamColorByBucket;
+  QHash<int, quint64> m_jttyStreamLastUsed;
+  quint64 m_jttyStreamColorClock {0};
   QString m_rttySubmode {"RTTY-45"};
   double m_rttyBaud {45.4545};
   double m_rttyShift {170.0};

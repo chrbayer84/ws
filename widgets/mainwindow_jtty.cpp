@@ -14,6 +14,7 @@
 #include "Audio/soundout.h"
 #include "Detector/Detector.hpp"
 #include <QSettings>
+#include <QSet>
 #include <QtConcurrent/QtConcurrentRun>
 #include <functional>
 #include <algorithm>
@@ -135,6 +136,26 @@ namespace
     format.setForeground (isCQ ? QBrush (cqForeground) : QBrush (defaultForeground));
     return format;
   }
+
+  // Distinct pastel tints for identified CW/JTty streams. CQ keeps the bright
+  // green only as a marker; the stream tint identifies the frequency.
+  QColor jttyStreamColor (int index)
+  {
+    static const QColor palette[] = {
+      QColor (0xC7, 0xDD, 0xF2), // powder blue
+      QColor (0xD4, 0xD2, 0xF2), // periwinkle
+      QColor (0xCD, 0xEB, 0xD6), // mint
+      QColor (0xF8, 0xDF, 0xC4), // pale apricot
+      QColor (0xC9, 0xEC, 0xE8), // pale aqua
+      QColor (0xE7, 0xD8, 0xF5), // pale lilac
+      QColor (0xDF, 0xE9, 0xCC), // pale sage
+      QColor (0xCF, 0xD8, 0xF7), // pale cornflower
+    };
+    return palette[((index % 8) + 8) % 8];
+  }
+
+  QColor const jttyStreamTextColor (0x1A, 0x1A, 0x1A);
+  QColor const jttyCqRuleColor (0x2E, 0x7D, 0x32);
 }
 
 extern "C" {
@@ -220,24 +241,104 @@ int MainWindow::jttySnrForSelectedWord(QString const& word, bool leftPane) const
   return -10;
 }
 
+int MainWindow::jttyStreamColorIndex(float frequency)
+{
+  if (!(frequency > 0.0f)) return -1;
+
+  int const bucket = qRound(frequency / 25.0f);
+  auto existing = m_jttyStreamColorByBucket.constFind(bucket);
+  if (existing != m_jttyStreamColorByBucket.constEnd()) {
+    m_jttyStreamLastUsed[bucket] = ++m_jttyStreamColorClock;
+    return existing.value();
+  }
+
+  // Keep the colour if the reported frequency drifts across bucket edges.
+  for (int distance = 1; distance <= 2; ++distance) {
+    int const neighbours[2] = {bucket - distance, bucket + distance};
+    for (int neighbour : neighbours) {
+      auto nearby = m_jttyStreamColorByBucket.constFind(neighbour);
+      if (nearby != m_jttyStreamColorByBucket.constEnd()) {
+        int const index = nearby.value();
+        m_jttyStreamColorByBucket.insert(bucket, index);
+        m_jttyStreamLastUsed.insert(bucket, ++m_jttyStreamColorClock);
+        return index;
+      }
+    }
+  }
+
+  QSet<int> used;
+  for (auto it = m_jttyStreamColorByBucket.constBegin();
+       it != m_jttyStreamColorByBucket.constEnd(); ++it) {
+    used.insert(it.value());
+  }
+  int index = -1;
+  for (int candidate = 0; candidate < 8; ++candidate) {
+    if (!used.contains(candidate)) {
+      index = candidate;
+      break;
+    }
+  }
+  if (index < 0) {
+    int oldestBucket = -1;
+    quint64 oldest = ~quint64(0);
+    for (auto it = m_jttyStreamLastUsed.constBegin();
+         it != m_jttyStreamLastUsed.constEnd(); ++it) {
+      if (it.value() < oldest) {
+        oldest = it.value();
+        oldestBucket = it.key();
+      }
+    }
+    if (oldestBucket >= 0) {
+      index = m_jttyStreamColorByBucket.value(oldestBucket);
+      m_jttyStreamColorByBucket.remove(oldestBucket);
+      m_jttyStreamLastUsed.remove(oldestBucket);
+    }
+  }
+  if (index < 0) index = 0;
+
+  m_jttyStreamColorByBucket.insert(bucket, index);
+  m_jttyStreamLastUsed.insert(bucket, ++m_jttyStreamColorClock);
+  return index;
+}
+
+void MainWindow::insertJttyDisplayLine(QTextCursor& cursor, QString const& display,
+                                       float frequency, bool isCQ,
+                                       QFont const& font, QColor const& defaultFg)
+{
+  int const colorIndex = jttyStreamColorIndex(frequency);
+  QColor const background = colorIndex >= 0
+      ? jttyStreamColor(colorIndex) : QColor(Qt::transparent);
+
+  QTextCharFormat lineFormat = jttyDisplayFormat(
+      font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
+  lineFormat.setBackground(QBrush(background));
+  // Pastel tints always need dark text; an uncoloured line keeps the theme text.
+  lineFormat.setForeground(QBrush(colorIndex >= 0 ? jttyStreamTextColor : defaultFg));
+  if (isCQ) lineFormat.setFontWeight(QFont::Bold);
+
+  QTextBlockFormat blockFormat = cursor.blockFormat();
+  if (colorIndex >= 0) blockFormat.setBackground(QBrush(background));
+  else blockFormat.clearBackground();
+  cursor.setBlockFormat(blockFormat);
+  cursor.setBlockCharFormat(lineFormat);
+
+  if (isCQ) {
+    QTextCharFormat ruleFormat = lineFormat;
+    ruleFormat.setForeground(QBrush(jttyCqRuleColor));
+    ruleFormat.setFontWeight(QFont::Bold);
+    cursor.insertText(QStringLiteral("\u258C "), ruleFormat);
+  }
+  cursor.insertText(display, lineFormat);
+}
+
 void MainWindow::renderJttyAllFreqLines()
 {
   if (m_jttyAllFreqLines.isEmpty()) return;
 
-  QStringList displayLines;
-  for (auto const& line : m_jttyAllFreqLines) {
-    QString displayLine = formatJttyDecodeLine (
-      line.frequency, line.snr, Jtty::wrapMessage (line.text));
-    if (ui->cbLowerCase->isChecked ()) displayLine = displayLine.toLower ();
-    QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
-    if (!time.isEmpty ()) displayLine = time + " " + displayLine;
-    displayLines.append (displayLine);
-  }
-
+  QFont const font = ui->decodedTextBrowser->contentFont();
   QColor const defaultFg = ui->decodedTextBrowser->palette().color(QPalette::Text);
-  QTextCharFormat const format = jttyDisplayFormat(
-      ui->decodedTextBrowser->contentFont(), false,
-      cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
+  QTextCharFormat const baseFormat = jttyDisplayFormat(
+      font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
 
   QTextCursor cursor = ui->decodedTextBrowser->textCursor ();
   const int charCount = ui->decodedTextBrowser->document ()->characterCount ();
@@ -251,13 +352,30 @@ void MainWindow::renderJttyAllFreqLines()
   } else {
     cursor.movePosition (QTextCursor::End);
     if (cursor.position () > 0) {
-      cursor.setCharFormat (format);
+      cursor.setCharFormat (baseFormat);
       cursor.insertBlock ();
     }
   }
+
   m_jttyAllFreqsGroupStartPosition = cursor.position ();
-  cursor.setCharFormat (format);
-  cursor.insertText (displayLines.join (QChar {'\n'}), format);
+  bool firstLine = true;
+  for (auto const& line : m_jttyAllFreqLines) {
+    QString display = formatJttyDecodeLine (
+      line.frequency, line.snr, Jtty::wrapMessage (line.text));
+    if (ui->cbLowerCase->isChecked ()) display = display.toLower ();
+    QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
+    if (!time.isEmpty ()) display = time + " " + display;
+
+    bool const isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ")
+        || line.text.contains(" QRZ ") || line.text.startsWith("CQ ")
+        || line.text.endsWith(" CQ");
+    if (!firstLine) {
+      cursor.setCharFormat (baseFormat);
+      cursor.insertBlock ();
+    }
+    insertJttyDisplayLine (cursor, display, line.frequency, isCQ, font, defaultFg);
+    firstLine = false;
+  }
   m_jttyAllFreqsGroupEndPosition = cursor.position ();
   ui->decodedTextBrowser->setTextCursor (cursor);
   ui->decodedTextBrowser->ensureCursorVisible ();
@@ -301,18 +419,15 @@ void MainWindow::renderJttyQsoLines()
     if (ui->cbLowerCase->isChecked ()) display = display.toLower ();
     QString const time = Jtty::jttyLineTimeLabel (line.messageStartUtc);
     if (!time.isEmpty ()) display = time + " " + display;
-    
-    // CQ highlighting for QSO pane (matching FT8 shade)
-    bool isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ") || line.text.contains(" QRZ ")
-             || line.text.startsWith("CQ ") || line.text.endsWith(" CQ");
-    QTextCharFormat const lineFormat = jttyDisplayFormat(
-        font, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
-    
+
+    bool const isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ")
+        || line.text.contains(" QRZ ") || line.text.startsWith("CQ ")
+        || line.text.endsWith(" CQ");
     if (!firstLine) {
       cursor.setCharFormat (baseFormat);
-      cursor.insertBlock();
+      cursor.insertBlock ();
     }
-    cursor.insertText(display, lineFormat);
+    insertJttyDisplayLine (cursor, display, line.frequency, isCQ, font, defaultFg);
     firstLine = false;
   }
   m_jttyQsoGroupEndPosition = cursor.position();
@@ -320,7 +435,6 @@ void MainWindow::renderJttyQsoLines()
   m_jttyQsoRenderedLowerCase = ui->cbLowerCase->isChecked();
   m_jttyQsoRenderedIncludeTime = true;
 }
-
 
 bool MainWindow::rtty_decode(int k, int istart0, int istop)
 {
@@ -346,6 +460,9 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
       m_jttyAllFreqsGroupEndPosition = -1;
       m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
+      m_jttyStreamColorByBucket.clear();
+      m_jttyStreamLastUsed.clear();
+      m_jttyStreamColorClock = 0;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
       m_bDecoded = false;
@@ -389,15 +506,13 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
       QFont const font = ui->decodedTextBrowser->contentFont();
       QTextCharFormat const baseFormat = jttyDisplayFormat(
           font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
-      QTextCharFormat const format = jttyDisplayFormat(
-          font, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
       QTextCursor cursor = ui->decodedTextBrowser->textCursor();
       cursor.movePosition(QTextCursor::End);
       if (cursor.position() > 0) {
         cursor.setCharFormat(baseFormat);
         cursor.insertBlock();
       }
-      cursor.insertText(displayLine, format);
+      insertJttyDisplayLine(cursor, displayLine, update.frequency, isCQ, font, defaultFg);
       ui->decodedTextBrowser->setTextCursor(cursor);
       ui->decodedTextBrowser->ensureCursorVisible();
 
@@ -504,6 +619,9 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       m_jttyAllFreqsGroupEndPosition = -1;
       m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
+      m_jttyStreamColorByBucket.clear();
+      m_jttyStreamLastUsed.clear();
+      m_jttyStreamColorClock = 0;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
       m_bDecoded = false;
@@ -550,15 +668,13 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       QFont const font = ui->decodedTextBrowser->contentFont();
       QTextCharFormat const baseFormat = jttyDisplayFormat(
           font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
-      QTextCharFormat const format = jttyDisplayFormat(
-          font, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
       QTextCursor cursor = ui->decodedTextBrowser->textCursor();
       cursor.movePosition(QTextCursor::End);
       if (cursor.position() > 0) {
         cursor.setCharFormat(baseFormat);
         cursor.insertBlock();
       }
-      cursor.insertText(displayLine, format);
+      insertJttyDisplayLine(cursor, displayLine, update.frequency, isCQ, font, defaultFg);
       ui->decodedTextBrowser->setTextCursor(cursor);
       ui->decodedTextBrowser->ensureCursorVisible();
 
@@ -572,15 +688,13 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
         QFont const qsoFont = ui->decodedTextBrowser2->contentFont();
         QTextCharFormat const qsoBaseFormat = jttyDisplayFormat(
             qsoFont, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), qsoDefaultFg);
-        QTextCharFormat const qsoFormat = jttyDisplayFormat(
-            qsoFont, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), qsoDefaultFg);
         QTextCursor qsoCursor = ui->decodedTextBrowser2->textCursor();
         qsoCursor.movePosition(QTextCursor::End);
         if (qsoCursor.position() > 0) {
           qsoCursor.setCharFormat(qsoBaseFormat);
           qsoCursor.insertBlock();
         }
-        qsoCursor.insertText(displayLine, qsoFormat);
+        insertJttyDisplayLine(qsoCursor, displayLine, update.frequency, isCQ, qsoFont, qsoDefaultFg);
         ui->decodedTextBrowser2->setTextCursor(qsoCursor);
         ui->decodedTextBrowser2->ensureCursorVisible();
         anyEom = true;
@@ -617,6 +731,9 @@ bool MainWindow::cw_decode(int k, int istart0, int istop)
       m_jttyAllFreqsGroupEndPosition = -1;
       m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
+      m_jttyStreamColorByBucket.clear();
+      m_jttyStreamLastUsed.clear();
+      m_jttyStreamColorClock = 0;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
       m_bDecoded = false;
@@ -741,6 +858,9 @@ bool MainWindow::jtty_decode(int k, int istart0, int istop)
       m_jttyAllFreqsGroupEndPosition = -1;
       m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
+      m_jttyStreamColorByBucket.clear();
+      m_jttyStreamLastUsed.clear();
+      m_jttyStreamColorClock = 0;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
       m_bDecoded = false;
