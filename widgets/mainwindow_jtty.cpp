@@ -120,6 +120,21 @@ namespace
     }
     return QColor(Qt::black);
   }
+
+  // Always set both colours explicitly. A block created right after a
+  // CQ-highlighted line otherwise inherits the green background, and every
+  // later line (whose format doesn't mention a background) stays green.
+  QTextCharFormat jttyDisplayFormat (QFont const& font, bool isCQ,
+                                     QColor const& cqBackground,
+                                     QColor const& cqForeground,
+                                     QColor const& defaultForeground)
+  {
+    QTextCharFormat format;
+    format.setFont (font);
+    format.setBackground (isCQ ? QBrush (cqBackground) : QBrush (Qt::transparent));
+    format.setForeground (isCQ ? QBrush (cqForeground) : QBrush (defaultForeground));
+    return format;
+  }
 }
 
 extern "C" {
@@ -219,8 +234,10 @@ void MainWindow::renderJttyAllFreqLines()
     displayLines.append (displayLine);
   }
 
-  QTextCharFormat format;
-  format.setFont (ui->decodedTextBrowser->contentFont ());
+  QColor const defaultFg = ui->decodedTextBrowser->palette().color(QPalette::Text);
+  QTextCharFormat const format = jttyDisplayFormat(
+      ui->decodedTextBrowser->contentFont(), false,
+      cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
 
   QTextCursor cursor = ui->decodedTextBrowser->textCursor ();
   if (m_jttyAllFreqsGroupStart.isValid ()) {
@@ -229,9 +246,13 @@ void MainWindow::renderJttyAllFreqLines()
     cursor.removeSelectedText ();
   } else {
     cursor.movePosition (QTextCursor::End);
-    if (cursor.position () > 0) cursor.insertBlock ();
+    if (cursor.position () > 0) {
+      cursor.setCharFormat (format);
+      cursor.insertBlock ();
+    }
   }
   m_jttyAllFreqsGroupStart = cursor.block ();
+  cursor.setCharFormat (format);
   cursor.insertText (displayLines.join (QChar {'\n'}), format);
   ui->decodedTextBrowser->setTextCursor (cursor);
   ui->decodedTextBrowser->ensureCursorVisible ();
@@ -256,8 +277,10 @@ void MainWindow::renderJttyQsoLines()
     if (cursor.position () > 0) cursor.insertBlock ();
   }
 
-  QTextCharFormat format;
-  format.setFont (ui->decodedTextBrowser2->contentFont ());
+  QColor const defaultFg = ui->decodedTextBrowser2->palette().color(QPalette::Text);
+  QFont const font = ui->decodedTextBrowser2->contentFont();
+  QTextCharFormat const baseFormat = jttyDisplayFormat(
+      font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
   m_jttyQsoGroupStart = cursor.block ();
   for (auto const& line : m_jttyQsoLines) {
     QString display = formatJttyDecodeLine (
@@ -269,13 +292,13 @@ void MainWindow::renderJttyQsoLines()
     // CQ highlighting for QSO pane (matching FT8 shade)
     bool isCQ = line.text.contains(" CQ ") || line.text.contains(" CQDX ") || line.text.contains(" QRZ ")
              || line.text.startsWith("CQ ") || line.text.endsWith(" CQ");
-    QTextCharFormat lineFormat = format;
-    if (isCQ) {
-      lineFormat.setBackground(QBrush(cqHighlightBackground(m_config)));
-      lineFormat.setForeground(QBrush(cqHighlightForeground(m_config)));
-    }
+    QTextCharFormat const lineFormat = jttyDisplayFormat(
+        font, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
     
-    if (cursor.position() > 0) cursor.insertBlock();
+    if (cursor.position() > 0) {
+      cursor.setCharFormat (baseFormat);
+      cursor.insertBlock();
+    }
     cursor.insertText(display, lineFormat);
   }
   m_jttyQsoGroupEnd = cursor.block();
@@ -346,18 +369,20 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
       if (ui->cbLowerCase->isChecked()) displayLine = displayLine.toLower();
       QString const time = Jtty::jttyLineTimeLabel(jttyLineDisplayDateTimeUtc(update.sequenceStart));
       if (!time.isEmpty()) displayLine = time + " " + displayLine;
-      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
-      cursor.movePosition(QTextCursor::End);
-      if (cursor.position() > 0) cursor.insertBlock();
-      
       // CQ highlighting for conversational modes (matching FT8 shade)
       bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ")
                || update.text.startsWith("CQ ") || update.text.endsWith(" CQ");
-      QTextCharFormat format;
-      format.setFont(ui->decodedTextBrowser->contentFont());
-      if (isCQ) {
-        format.setBackground(QBrush(cqHighlightBackground(m_config)));
-        format.setForeground(QBrush(cqHighlightForeground(m_config)));
+      QColor const defaultFg = ui->decodedTextBrowser->palette().color(QPalette::Text);
+      QFont const font = ui->decodedTextBrowser->contentFont();
+      QTextCharFormat const baseFormat = jttyDisplayFormat(
+          font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
+      QTextCharFormat const format = jttyDisplayFormat(
+          font, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
+      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      if (cursor.position() > 0) {
+        cursor.setCharFormat(baseFormat);
+        cursor.insertBlock();
       }
       cursor.insertText(displayLine, format);
       ui->decodedTextBrowser->setTextCursor(cursor);
@@ -505,18 +530,20 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       if (!time.isEmpty()) displayLine = time + " " + displayLine;
 
       // 1. All Decodes Pane (Left Pane)
-      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
-      cursor.movePosition(QTextCursor::End);
-      if (cursor.position() > 0) cursor.insertBlock();
-      
       // CQ highlighting for All Decodes pane (matching FT8 shade)
       bool isCQ = update.text.contains(" CQ ") || update.text.contains(" CQDX ") || update.text.contains(" QRZ ")
                || update.text.startsWith("CQ ") || update.text.endsWith(" CQ");
-      QTextCharFormat format;
-      format.setFont(ui->decodedTextBrowser->contentFont());
-      if (isCQ) {
-        format.setBackground(QBrush(cqHighlightBackground(m_config)));
-        format.setForeground(QBrush(cqHighlightForeground(m_config)));
+      QColor const defaultFg = ui->decodedTextBrowser->palette().color(QPalette::Text);
+      QFont const font = ui->decodedTextBrowser->contentFont();
+      QTextCharFormat const baseFormat = jttyDisplayFormat(
+          font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
+      QTextCharFormat const format = jttyDisplayFormat(
+          font, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
+      QTextCursor cursor = ui->decodedTextBrowser->textCursor();
+      cursor.movePosition(QTextCursor::End);
+      if (cursor.position() > 0) {
+        cursor.setCharFormat(baseFormat);
+        cursor.insertBlock();
       }
       cursor.insertText(displayLine, format);
       ui->decodedTextBrowser->setTextCursor(cursor);
@@ -528,10 +555,19 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       // 2. QSO Pane (Right Pane): only if on the active RX frequency (+/- tolerance)
       float const effectiveTol = qMax(ftol, 25.0f);
       if (std::abs(update.frequency - f0) <= effectiveTol) {
+        QColor const qsoDefaultFg = ui->decodedTextBrowser2->palette().color(QPalette::Text);
+        QFont const qsoFont = ui->decodedTextBrowser2->contentFont();
+        QTextCharFormat const qsoBaseFormat = jttyDisplayFormat(
+            qsoFont, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), qsoDefaultFg);
+        QTextCharFormat const qsoFormat = jttyDisplayFormat(
+            qsoFont, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), qsoDefaultFg);
         QTextCursor qsoCursor = ui->decodedTextBrowser2->textCursor();
         qsoCursor.movePosition(QTextCursor::End);
-        if (qsoCursor.position() > 0) qsoCursor.insertBlock();
-        qsoCursor.insertText(displayLine, format);
+        if (qsoCursor.position() > 0) {
+          qsoCursor.setCharFormat(qsoBaseFormat);
+          qsoCursor.insertBlock();
+        }
+        qsoCursor.insertText(displayLine, qsoFormat);
         ui->decodedTextBrowser2->setTextCursor(qsoCursor);
         ui->decodedTextBrowser2->ensureCursorVisible();
         anyEom = true;
