@@ -20,13 +20,21 @@ public:
     void setToneFrequency(float hz);
     void setRiseTimeMs(float ms);
     void setReverse(bool rev);
+    void setSampleRate(int hz);
 
     int getWpm() const { return wpm_; }
     float getToneFrequency() const { return tone_hz_; }
     float getRiseTimeMs() const { return rise_time_ms_; }
     bool getReverse() const { return reverse_; }
+    int getSampleRate() const { return sample_rate_; }
 
     void tx_init();
+    // Streaming TX: encode once, then generate the whole message in chunks.
+    void tx_begin(const std::string& text);
+    int tx_generate(float* output, int max_samples);
+    bool tx_done() const;
+    int tx_total_samples() const { return tx_total_samples_; }
+    int tx_max_element_samples() const { return tx_total_samples_ > 0 ? tx_max_element_ : 0; }
     int tx_process(float* output, int max_samples, const std::string& text);
 
 private:
@@ -44,6 +52,10 @@ private:
     float tone_hz_ = DEFAULT_TONE_HZ;
     float rise_time_ms_ = DEFAULT_RISE_TIME_MS;
     bool reverse_ = false;
+    int sample_rate_ = SAMPLE_RATE;
+    size_t tx_elem_index_ = 0;
+    int tx_total_samples_ = 0;
+    int tx_max_element_ = 0;
 
     int dot_samples_ = 0;
     int dash_samples_ = 0;

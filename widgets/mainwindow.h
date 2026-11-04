@@ -1241,6 +1241,8 @@ private:
   void execute_rtty_tx(qint64 requestId, QString message, bool isFinal = true);
   void execute_psk_tx(qint64 requestId, QString message, bool isFinal = true);
   void execute_cw_tx(qint64 requestId, QString message, bool isFinal = true);
+  bool enqueueCwTxChunk(bool first, bool useTciAudio);
+  void feedCwTxChunk();
   bool rtty_decode(int k, int istart0 = -1, int istop = -1);
   bool psk_decode(int k, int istart0 = -1, int istop = -1);
   bool cw_decode(int k, int istart0 = -1, int istop = -1);
@@ -1287,6 +1289,14 @@ private:
   JttyTxStream * m_jttyTxStream {new JttyTxStream {*m_jttyTxQueue}};
   qint32 m_nsym_jtty {0};
   QTimer m_jttyTxWatchdog;
+  QTimer* m_cwTxFeedTimer {nullptr};
+  bool m_cwTxStreaming {false};
+  TxAudioQueueEpoch m_cwTxStreamEpoch {};
+  qint64 m_cwTxStreamRequestId {0};
+  qint64 m_cwTxStreamTotal {0};
+  QString m_cwTxStreamMessage;
+  bool m_cwTxStreamNewSession {false};
+  std::vector<float> m_cwTxChunkBuffer;
   bool m_jttyTxActive {false};
   bool m_jttyTxUsesTciAudio {false};
   std::unique_ptr<Rtty::RttyModem> m_rttyTxModem;

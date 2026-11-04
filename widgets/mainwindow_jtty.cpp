@@ -1114,6 +1114,8 @@ void MainWindow::execute_cw_tx(qint64 requestId, QString message, bool isFinal)
   if (!m_cwTxModem) {
     m_cwTxModem = std::make_unique<Cw::CwModem>();
   }
+  // The shared TX queue and soundcard run at 48 kHz (unlike the 12 kHz RX).
+  m_cwTxModem->setSampleRate(48000);
   m_cwTxModem->setWpm(m_cwWpm);
   m_cwTxModem->setReverse(m_cwReverse);
   m_cwTxModem->setToneFrequency(600.0f);
@@ -1135,27 +1137,57 @@ void MainWindow::execute_cw_tx(qint64 requestId, QString message, bool isFinal)
     }
   }
 
-  std::vector<float> float_wave;
-  float_wave.reserve(12000 * 10); // Up to 10 seconds
-  int generated = m_cwTxModem->tx_process(float_wave.data(), float_wave.capacity(), message.toStdString());
-  float_wave.resize(generated);
+  // A new send replaces any long-message feeder still running.
+  if (m_cwTxFeedTimer) m_cwTxFeedTimer->stop();
+  m_cwTxStreaming = false;
 
-  std::vector<int16_t> wave;
-  wave.reserve(float_wave.size());
-  for (float val : float_wave) {
-    int16_t s = static_cast<int16_t>(std::max(-32768.0f, std::min(val * 32767.0f, 32767.0f)));
-    wave.push_back(s);
-  }
-
-  QVector<qint16> samples;
-  samples.reserve(wave.size());
-  for (int16_t val : wave) {
-    samples.append(val);
-  }
-
-  if (samples.isEmpty()) {
+  m_cwTxModem->tx_begin(message.toStdString());
+  int const total = m_cwTxModem->tx_total_samples();
+  if (total <= 0) {
     Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
     return;
+  }
+
+  if (!useTciAudio && total > TxAudioQueue::defaultCapacity()) {
+    // Long free-form message: feed the FIFO in chunks as it drains.
+    m_cwTxStreaming = true;
+    m_cwTxStreamEpoch = m_jttyTxQueueEpoch;
+    m_cwTxStreamRequestId = requestId;
+    m_cwTxStreamTotal = total;
+    m_cwTxStreamMessage = message;
+    m_cwTxStreamNewSession = newSession;
+    if (!enqueueCwTxChunk(true, useTciAudio)) {
+      m_cwTxStreaming = false;
+      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+      if (newSession) advanceJttyTxQueueEpoch();
+      return;
+    }
+    while (!m_cwTxModem->tx_done() && enqueueCwTxChunk(false, useTciAudio)) {
+    }
+    if (!m_cwTxModem->tx_done()) {
+      if (!m_cwTxFeedTimer) {
+        m_cwTxFeedTimer = new QTimer(this);
+        connect(m_cwTxFeedTimer, &QTimer::timeout, this, &MainWindow::feedCwTxChunk);
+      }
+      m_cwTxFeedTimer->start(100);
+    }
+    return;
+  }
+
+  // The whole message fits (or TCI takes it in one enqueue).
+  std::vector<float> float_wave(static_cast<size_t>(total));
+  int const generated = m_cwTxModem->tx_generate(float_wave.data(), total);
+  if (generated <= 0) {
+    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
+    return;
+  }
+  float_wave.resize(static_cast<size_t>(generated));
+
+  QVector<qint16> samples;
+  samples.reserve(generated);
+  for (float val : float_wave) {
+    samples.append(static_cast<qint16>(
+        std::max(-32768.0f, std::min(val * 32767.0f, 32767.0f))));
   }
 
   if (samples.size() > TxAudioQueue::defaultCapacity()) {
@@ -1196,6 +1228,66 @@ void MainWindow::execute_cw_tx(qint64 requestId, QString message, bool isFinal)
   }
 
   completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
+}
+
+bool MainWindow::enqueueCwTxChunk(bool first, bool useTciAudio)
+{
+  if (!m_cwTxModem || useTciAudio) return false;
+
+  qint64 const maxElement = std::max(1, m_cwTxModem->tx_max_element_samples());
+  qint64 const room = m_jttyTxQueue->capacity() - m_jttyTxQueue->progress().queued_samples;
+  if (room < maxElement) return false;
+
+  qint64 target = std::min<qint64>(room, 10 * 48000);
+  if (target < maxElement) target = maxElement;
+  if (target > room) target = room;
+  if (target <= 0) return false;
+
+  if (static_cast<qint64>(m_cwTxChunkBuffer.size()) < target) {
+    m_cwTxChunkBuffer.resize(static_cast<size_t>(target));
+  }
+  int const generated = m_cwTxModem->tx_generate(m_cwTxChunkBuffer.data(),
+                                                 static_cast<int>(target));
+  if (generated <= 0) return false;
+
+  QVector<qint16> samples;
+  samples.reserve(generated);
+  for (int i = 0; i < generated; ++i) {
+    float const val = m_cwTxChunkBuffer[static_cast<size_t>(i)];
+    samples.append(static_cast<qint16>(
+        std::max(-32768.0f, std::min(val * 32767.0f, 32767.0f))));
+  }
+
+  auto const result = m_jttyTxQueue->enqueue(samples, m_cwTxStreamEpoch);
+  if (!result.accepted) return false;
+
+  TxAudioQueueProgress progress = result.progress;
+  // Keep the committed total at the full streamed length so backend drain
+  // completion and the watchdog cover the whole message.
+  progress.total_samples = m_cwTxStreamTotal;
+  if (first) {
+    progress.queued_samples = m_cwTxStreamTotal;
+    completeJttyTxEnqueue(m_cwTxStreamRequestId, m_cwTxStreamMessage,
+                          progress, m_cwTxStreamNewSession, false);
+  } else {
+    m_jttyTxQueueProgress = progress;
+  }
+  return true;
+}
+
+void MainWindow::feedCwTxChunk()
+{
+  if (!m_cwTxStreaming || !m_cwTxModem) {
+    if (m_cwTxFeedTimer) m_cwTxFeedTimer->stop();
+    return;
+  }
+  while (!m_cwTxModem->tx_done()) {
+    if (!enqueueCwTxChunk(false, false)) break;
+  }
+  if (m_cwTxModem->tx_done()) {
+    if (m_cwTxFeedTimer) m_cwTxFeedTimer->stop();
+    m_cwTxStreaming = false;
+  }
 }
 
 void MainWindow::execute_jtty_tx(qint64 requestId, QString message)
@@ -1463,6 +1555,8 @@ void MainWindow::abort_jtty_tx()
 
 void MainWindow::interruptJttyTx()
 {
+  if (m_cwTxFeedTimer) m_cwTxFeedTimer->stop();
+  m_cwTxStreaming = false;
   if (!isConversationalMode() || !m_jttyTxActive) {
     return;
   }
@@ -1678,7 +1772,7 @@ bool MainWindow::sendJttyFunctionKey(int index)
   }
   if(macro.simplified().isEmpty()) return false;
 
-  if (m_mode == "RTTY" || m_mode == "PSK31") {
+  if (m_mode == "RTTY" || m_mode == "PSK31" || m_mode == "CW") {
     jtty_tx(jtty_msg_expand(macro));
     return true;
   }
@@ -2334,8 +2428,9 @@ void MainWindow::updateConversationalSubmodeControls()
 
   if (ui->label_submode) ui->label_submode->setVisible(showStrip);
   if (ui->comboBoxSubmode) ui->comboBoxSubmode->setVisible(showStrip);
-  if (ui->label_decoder) ui->label_decoder->setVisible(showStrip);
-  if (ui->comboBoxDecoder) ui->comboBoxDecoder->setVisible(showStrip);
+  // The decoder selector only applies to CW; RTTY/PSK have a single decoder.
+  if (ui->label_decoder) ui->label_decoder->setVisible(isCw);
+  if (ui->comboBoxDecoder) ui->comboBoxDecoder->setVisible(isCw);
   if (ui->cbReverse) ui->cbReverse->setVisible(showStrip);
   if (ui->label_squelch) ui->label_squelch->setVisible(showStrip);
   if (ui->sbSquelch) ui->sbSquelch->setVisible(showStrip);

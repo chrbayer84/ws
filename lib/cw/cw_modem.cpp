@@ -21,7 +21,12 @@ void CwModem::setWpm(int wpm) {
 
 void CwModem::setToneFrequency(float hz) {
     tone_hz_ = clamp_val(hz, 300.0f, 1200.0f);
-    phase_inc_ = 2.0 * M_PI * tone_hz_ / SAMPLE_RATE;
+    phase_inc_ = 2.0 * M_PI * tone_hz_ / sample_rate_;
+}
+
+void CwModem::setSampleRate(int hz) {
+    sample_rate_ = clamp_val(hz, 8000, 48000);
+    tx_init();
 }
 
 void CwModem::setRiseTimeMs(float ms) {
@@ -35,19 +40,19 @@ void CwModem::setReverse(bool rev) {
 
 void CwModem::tx_init() {
     const double dot_sec = 1.2 / wpm_;
-    dot_samples_ = static_cast<int>(dot_sec * SAMPLE_RATE + 0.5);
+    dot_samples_ = static_cast<int>(dot_sec * sample_rate_ + 0.5);
     dash_samples_ = dot_samples_ * 3;
     elem_space_samples_ = dot_samples_;
     char_space_samples_ = dot_samples_ * 3;
     word_space_samples_ = dot_samples_ * 7;
 
-    rise_samples_ = static_cast<int>(rise_time_ms_ * 0.001 * SAMPLE_RATE + 0.5);
+    rise_samples_ = static_cast<int>(rise_time_ms_ * 0.001 * sample_rate_ + 0.5);
     fall_samples_ = rise_samples_;
 
     rise_samples_ = std::min(rise_samples_, dot_samples_ / 2);
     fall_samples_ = std::min(fall_samples_, dot_samples_ / 2);
 
-    phase_inc_ = 2.0 * M_PI * tone_hz_ / SAMPLE_RATE;
+    phase_inc_ = 2.0 * M_PI * tone_hz_ / sample_rate_;
     phase_ = 0.0;
 
     build_edge_shape();
@@ -150,16 +155,39 @@ void CwModem::generate_space(int space_type, float* output, int& pos, int max_sa
     }
 }
 
-int CwModem::tx_process(float* output, int max_samples, const std::string& text) {
+void CwModem::tx_begin(const std::string& text) {
     encode_text(text);
-    int pos = 0;
-
+    tx_elem_index_ = 0;
+    tx_total_samples_ = 0;
+    tx_max_element_ = 0;
     for (const auto& elem : encoded_elements_) {
-        if (pos >= max_samples) break;
-        generate_element(elem.first, elem.second, output, pos, max_samples);
+        tx_total_samples_ += elem.second;
+        tx_max_element_ = std::max(tx_max_element_, elem.second);
     }
+    phase_ = 0.0;
+}
 
+int CwModem::tx_generate(float* output, int max_samples) {
+    int pos = 0;
+    while (tx_elem_index_ < encoded_elements_.size()) {
+        const auto& elem = encoded_elements_[tx_elem_index_];
+        // Never split an element across calls; the caller must provide at
+        // least tx_max_element_samples() of room.
+        if (pos > 0 && pos + elem.second > max_samples) break;
+        if (elem.second > max_samples) break;
+        generate_element(elem.first, elem.second, output, pos, max_samples);
+        ++tx_elem_index_;
+    }
     return pos;
+}
+
+bool CwModem::tx_done() const {
+    return tx_elem_index_ >= encoded_elements_.size();
+}
+
+int CwModem::tx_process(float* output, int max_samples, const std::string& text) {
+    tx_begin(text);
+    return tx_generate(output, max_samples);
 }
 
 } // namespace Cw
