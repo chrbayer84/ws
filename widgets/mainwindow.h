@@ -1337,8 +1337,7 @@ private:
     int snr {-10};
   };
   QVector<JttyQsoLine> m_jttyQsoLines;
-  QTextBlock m_jttyQsoGroupStart;
-  QTextBlock m_jttyQsoGroupEnd;
+  int m_jttyQsoGroupStartPosition {-1};
   int m_jttyQsoGroupEndPosition {-1};
   bool m_jttyQsoRenderedLowerCase {false};
   bool m_jttyQsoRenderedIncludeTime {true};
@@ -1357,7 +1356,8 @@ private:
   QVector<JttyDecodeLine> m_jttyAllFreqLines;
   int m_jttyLastAllFreqsK = -1;          // detects a restarted decode (new WAV, or "decode again")
   qint32 m_jttyLastSavedWavK0 = -1;      // m_k0 at last JTTY WAV save; skips saving unchanged audio again
-  QTextBlock m_jttyAllFreqsGroupStart;   // start of decodedTextBrowser's currently-growing group
+  int m_jttyAllFreqsGroupStartPosition {-1}; // start of the growing group
+  int m_jttyAllFreqsGroupEndPosition {-1};   // end of the growing group
   QString m_rttySubmode {"RTTY-45"};
   double m_rttyBaud {45.4545};
   double m_rttyShift {170.0};

@@ -240,9 +240,13 @@ void MainWindow::renderJttyAllFreqLines()
       cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
 
   QTextCursor cursor = ui->decodedTextBrowser->textCursor ();
-  if (m_jttyAllFreqsGroupStart.isValid ()) {
-    cursor.setPosition (m_jttyAllFreqsGroupStart.position ());
-    cursor.movePosition (QTextCursor::End, QTextCursor::KeepAnchor);
+  const int charCount = ui->decodedTextBrowser->document ()->characterCount ();
+  bool const reuse = m_jttyAllFreqsGroupStartPosition >= 0
+      && m_jttyAllFreqsGroupEndPosition >= m_jttyAllFreqsGroupStartPosition
+      && m_jttyAllFreqsGroupEndPosition < charCount;
+  if (reuse) {
+    cursor.setPosition (m_jttyAllFreqsGroupStartPosition);
+    cursor.setPosition (m_jttyAllFreqsGroupEndPosition, QTextCursor::KeepAnchor);
     cursor.removeSelectedText ();
   } else {
     cursor.movePosition (QTextCursor::End);
@@ -251,9 +255,10 @@ void MainWindow::renderJttyAllFreqLines()
       cursor.insertBlock ();
     }
   }
-  m_jttyAllFreqsGroupStart = cursor.block ();
+  m_jttyAllFreqsGroupStartPosition = cursor.position ();
   cursor.setCharFormat (format);
   cursor.insertText (displayLines.join (QChar {'\n'}), format);
+  m_jttyAllFreqsGroupEndPosition = cursor.position ();
   ui->decodedTextBrowser->setTextCursor (cursor);
   ui->decodedTextBrowser->ensureCursorVisible ();
 }
@@ -266,22 +271,30 @@ void MainWindow::renderJttyQsoLines()
     return;
   }
 
-  QTextCursor cursor = ui->decodedTextBrowser2->textCursor ();
-  if (m_jttyQsoGroupStart.isValid () && m_jttyQsoGroupEnd.isValid ()
-      && m_jttyQsoGroupEndPosition >= m_jttyQsoGroupStart.position ()) {
-    cursor.setPosition (m_jttyQsoGroupStart.position ());
-    cursor.setPosition (m_jttyQsoGroupEndPosition, QTextCursor::KeepAnchor);
-    cursor.removeSelectedText ();
-  } else {
-    cursor.movePosition (QTextCursor::End);
-    if (cursor.position () > 0) cursor.insertBlock ();
-  }
-
   QColor const defaultFg = ui->decodedTextBrowser2->palette().color(QPalette::Text);
   QFont const font = ui->decodedTextBrowser2->contentFont();
   QTextCharFormat const baseFormat = jttyDisplayFormat(
       font, false, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
-  m_jttyQsoGroupStart = cursor.block ();
+
+  QTextCursor cursor = ui->decodedTextBrowser2->textCursor ();
+  const int charCount = ui->decodedTextBrowser2->document ()->characterCount ();
+  bool const reuse = m_jttyQsoGroupStartPosition >= 0
+      && m_jttyQsoGroupEndPosition >= m_jttyQsoGroupStartPosition
+      && m_jttyQsoGroupEndPosition < charCount;
+  if (reuse) {
+    cursor.setPosition (m_jttyQsoGroupStartPosition);
+    cursor.setPosition (m_jttyQsoGroupEndPosition, QTextCursor::KeepAnchor);
+    cursor.removeSelectedText ();
+  } else {
+    cursor.movePosition (QTextCursor::End);
+    if (cursor.position () > 0) {
+      cursor.setCharFormat (baseFormat);
+      cursor.insertBlock ();
+    }
+  }
+
+  m_jttyQsoGroupStartPosition = cursor.position ();
+  bool firstLine = true;
   for (auto const& line : m_jttyQsoLines) {
     QString display = formatJttyDecodeLine (
       line.frequency, line.snr, Jtty::wrapMessage (line.text));
@@ -295,13 +308,13 @@ void MainWindow::renderJttyQsoLines()
     QTextCharFormat const lineFormat = jttyDisplayFormat(
         font, isCQ, cqHighlightBackground(m_config), cqHighlightForeground(m_config), defaultFg);
     
-    if (cursor.position() > 0) {
+    if (!firstLine) {
       cursor.setCharFormat (baseFormat);
       cursor.insertBlock();
     }
     cursor.insertText(display, lineFormat);
+    firstLine = false;
   }
-  m_jttyQsoGroupEnd = cursor.block();
   m_jttyQsoGroupEndPosition = cursor.position();
   ui->decodedTextBrowser2->setTextCursor(cursor);
   m_jttyQsoRenderedLowerCase = ui->cbLowerCase->isChecked();
@@ -329,9 +342,9 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   m_jttyLastAllFreqsK = k;
   if (newAllFreqsSession) {
       flushJttyDecodeLines();
-      m_jttyAllFreqsGroupStart = QTextBlock();
-      m_jttyQsoGroupStart = QTextBlock();
-      m_jttyQsoGroupEnd = QTextBlock();
+      m_jttyAllFreqsGroupStartPosition = -1;
+      m_jttyAllFreqsGroupEndPosition = -1;
+      m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
@@ -487,9 +500,9 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
   m_jttyLastAllFreqsK = k;
   if (newAllFreqsSession) {
       flushJttyDecodeLines();
-      m_jttyAllFreqsGroupStart = QTextBlock();
-      m_jttyQsoGroupStart = QTextBlock();
-      m_jttyQsoGroupEnd = QTextBlock();
+      m_jttyAllFreqsGroupStartPosition = -1;
+      m_jttyAllFreqsGroupEndPosition = -1;
+      m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
@@ -600,9 +613,9 @@ bool MainWindow::cw_decode(int k, int istart0, int istop)
   m_jttyLastAllFreqsK = k;
   if (newAllFreqsSession) {
       flushJttyDecodeLines();
-      m_jttyAllFreqsGroupStart = QTextBlock();
-      m_jttyQsoGroupStart = QTextBlock();
-      m_jttyQsoGroupEnd = QTextBlock();
+      m_jttyAllFreqsGroupStartPosition = -1;
+      m_jttyAllFreqsGroupEndPosition = -1;
+      m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
@@ -724,9 +737,9 @@ bool MainWindow::jtty_decode(int k, int istart0, int istop)
   m_jttyLastAllFreqsK = k;
   if (newAllFreqsSession) {
       flushJttyDecodeLines();
-      m_jttyAllFreqsGroupStart = QTextBlock();
-      m_jttyQsoGroupStart = QTextBlock();
-      m_jttyQsoGroupEnd = QTextBlock();
+      m_jttyAllFreqsGroupStartPosition = -1;
+      m_jttyAllFreqsGroupEndPosition = -1;
+      m_jttyQsoGroupStartPosition = -1;
       m_jttyQsoGroupEndPosition = -1;
       m_jttyQsoLines.clear();
       m_jttyAllFreqLines.clear();
