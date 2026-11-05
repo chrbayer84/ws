@@ -160,9 +160,11 @@ void DisplayText::insertText(QString const& text, QColor bg, QColor fg
   auto format = cursor.blockCharFormat ();
   format.setFont (char_font_);
   block_format.clearBackground ();
+  format.clearBackground ();
   if (bg.isValid ())
     {
       block_format.setBackground (bg);
+      format.setBackground (bg);
     }
   format.clearForeground ();
   if (fg.isValid ())
