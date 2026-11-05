@@ -4,7 +4,7 @@ project(cw_modem_tests LANGUAGES CXX)
 
 enable_testing()
 
-find_package(FFTW3 REQUIRED)
+find_package(FFTW3 COMPONENTS single REQUIRED)
 
 add_executable(test_cw_morse_table test_cw_morse_table.cpp)
 target_link_libraries(test_cw_morse_table PRIVATE cw_modem ${FFTW3_LIBRARIES})

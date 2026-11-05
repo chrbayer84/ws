@@ -3,7 +3,15 @@
 #include <cmath>
 #include <cstring>
 
-#include <fftw3.h>
+#if defined(__has_include)
+#  if __has_include(<fftw3f.h>)
+#    include <fftw3f.h>
+#  else
+#    include <fftw3.h>
+#  endif
+#else
+#  include <fftw3.h>
+#endif
 
 namespace Cw {
 namespace DeepCw {

@@ -46,6 +46,7 @@ add_library(deepcw STATIC
 
 target_include_directories(deepcw PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${FFTW3_INCLUDE_DIRS}
 )
 
 target_link_libraries(deepcw PUBLIC

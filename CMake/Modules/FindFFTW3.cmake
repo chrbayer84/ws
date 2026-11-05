@@ -113,8 +113,8 @@ foreach (_lib ${_thread_libs})
   endif ()
 endforeach (_lib ${_thread_libs})
 
-# Search for the header file.
-find_path (FFTW3_INCLUDE_DIR fftw3.h 
+# Search for the header file (combined fftw3.h or single-precision fftw3f.h).
+find_path (FFTW3_INCLUDE_DIR NAMES fftw3.h fftw3f.h
   HINTS ${FFTW3_ROOT_DIR} PATH_SUFFIXES include)
 mark_as_advanced (FFTW3_INCLUDE_DIR)
 list(APPEND _check_list FFTW3_INCLUDE_DIR)
