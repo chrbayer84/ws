@@ -42,6 +42,7 @@
 #include "Transceiver/Transceiver.hpp"
 #include "DisplayManual.hpp"
 #include "Network/PSKReporter.hpp"
+#include "lib/conv/ConversationalCallsignReporter.hpp"
 #include "Network/Cloudlog.hpp"
 #include "logbook/logbook.h"
 #include "astro.h"
@@ -1030,6 +1031,8 @@ private:
   QTimer m_heartbeat;
   MessageClient * m_messageClient;
   PSKReporter m_psk_Reporter;
+  Conversational::CallsignReporter m_conversationalReporter;
+  bool m_conversationalReportingSuppressed {false};
   QNetworkAccessManager * m_livecqNAM = nullptr;  //liveCQ uploads (lazily created)
   QHash<QString, qint64> m_livecqSent;  //liveCQ floor: callsign -> last TR period uploaded
   QSet<QString> m_livecqHeardBy;  //liveCQ: stations that decoded MY call in the aging window
@@ -1246,6 +1249,7 @@ private:
   bool rtty_decode(int k, int istart0 = -1, int istop = -1);
   bool psk_decode(int k, int istart0 = -1, int istop = -1);
   bool cw_decode(int k, int istart0 = -1, int istop = -1);
+  void reportConversationalCalls(QString const& mode, QVector<Conversational::DecodedMessage> const& messages);
   bool isConversationalMode() const { return m_mode == "JTTY" || m_mode == "RTTY" || m_mode == "PSK31" || m_mode == "CW"; }
   void execute_jtty_tx(qint64 requestId, QString message);
   void execute_jtty_tones(qint64 requestId, QString const& message,

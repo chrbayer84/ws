@@ -6,6 +6,7 @@
 #include "JttyN1mm.hpp"
 #include "JttyReplay.hpp"
 #include "Logger.hpp"
+#include "Network/MessageClient.hpp"
 #include "models/DecodeHighlightingModel.hpp"
 #include <QByteArray>
 #include <QDateTime>
@@ -94,6 +95,25 @@ namespace
     QString const snrText = QStringLiteral("%1").arg(snr, 3);
     return message.isEmpty() ? frequencyText
       : frequencyText + QStringLiteral(" ") + snrText + QStringLiteral("  ") + message;
+  }
+
+  QVector<Conversational::DecodedMessage> conversationalMessages (
+    QVector<Jtty::MessageUpdate> const& updates,
+    std::function<QDateTime (float)> const& timeFor)
+  {
+    QVector<Conversational::DecodedMessage> messages;
+    messages.reserve (updates.size ());
+    for (auto const& update : updates) {
+      Conversational::DecodedMessage message;
+      message.messageId = update.messageId;
+      message.frequency = update.frequency;
+      message.text = update.text;
+      message.time = timeFor (update.sequenceStart);
+      message.snr = update.snr;
+      message.complete = update.complete;
+      messages.append (message);
+    }
+    return messages;
   }
 
   QColor cqHighlightBackground(Configuration const& config)
@@ -490,6 +510,9 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   }
   
   QVector<Jtty::MessageUpdate> updates = m_rttyDecoder.takeUpdates();
+  if (istart0 < 0) {
+    reportConversationalCalls (QStringLiteral ("RTTY"), conversationalMessages (updates, jttyLineDateTimeUtc));
+  }
 
   // In RTTY mode, completed decodes across the passband append to the bottom of the All Decodes pane (like FT8)
   for (auto const& update : updates) {
@@ -594,6 +617,29 @@ bool MainWindow::rtty_decode(int k, int istart0, int istop)
   return anyEom;
 }
 
+void MainWindow::reportConversationalCalls (
+  QString const& mode, QVector<Conversational::DecodedMessage> const& messages)
+{
+  if (m_conversationalReportingSuppressed) return;
+  auto const reports = m_conversationalReporter.process (mode, messages, m_baseCall);
+  for (auto const& report : reports) {
+    Radio::Frequency const frequency = Radio::Frequency (
+      qRound64 (double (m_freqNominalPeriod) + double (report.frequency)));
+    if (!m_diskData && m_config.spot_to_psk_reporter ()) {
+      if (!m_psk_Reporter.addRemoteStation (report.call, report.grid, frequency,
+                                            mode, report.snr, report.time)) {
+        showStatusMessage (tr ("Spotting to PSK Reporter unavailable"));
+      }
+    }
+    if (m_messageClient) {
+      quint32 const delta_frequency = quint32 (qMax (0.0, double (report.frequency)));
+      m_messageClient->decode (true, report.time.time (), report.snr, 0.0f,
+                               delta_frequency, mode, report.udpMessageText (),
+                               false, m_diskData);
+    }
+  }
+}
+
 bool MainWindow::psk_decode(int k, int istart0, int istop)
 {
   (void)istop;
@@ -649,6 +695,9 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
   }
 
   QVector<Jtty::MessageUpdate> updates = m_pskDecoder.takeUpdates();
+  if (istart0 < 0) {
+    reportConversationalCalls (QStringLiteral ("PSK31"), conversationalMessages (updates, jttyLineDateTimeUtc));
+  }
 
   bool anyEom {false};
   // Process PSK31 decodes (FT8-style: completed lines append to bottom and never mutate)
@@ -761,6 +810,9 @@ bool MainWindow::cw_decode(int k, int istart0, int istop)
   }
 
   QVector<Jtty::MessageUpdate> updates = m_cwDecoder.takeUpdates();
+  if (istart0 < 0) {
+    reportConversationalCalls (QStringLiteral ("CW"), conversationalMessages (updates, jttyLineDateTimeUtc));
+  }
 
   // CW is decoded character by character: keep one growing line per message
   // (and per station on the QSO pane) and re-render it as characters arrive.
@@ -897,6 +949,10 @@ bool MainWindow::jtty_decode(int k, int istart0, int istop)
                           sequenceStarts[i], complete[i], snrs[i]});
       }
   } while (updateCount == jttyMaxUpdates);
+
+  if (istart0 < 0) {
+    reportConversationalCalls (QStringLiteral ("JTTY"), conversationalMessages (updates, jttyLineDateTimeUtc));
+  }
 
   bool const allHistoryChanged = Jtty::mergeMessageUpdates(
       m_jttyAllFreqLines, updates,
@@ -1827,10 +1883,13 @@ void MainWindow::jtty_again()
 {
   ui->DecodeButton->setChecked (true);
   qApp->processEvents();                                //Update the DecodeButton highlight
+  bool const previous_suppression = m_conversationalReportingSuppressed;
+  m_conversationalReportingSuppressed = true;
   replayJttyFrames (dec_data.params.kin, [this] (int k) {
     if (m_mode == "RTTY") rtty_decode(k); else if (m_mode == "PSK31") psk_decode(k); else jtty_decode(k);
     return false;
   });
+  m_conversationalReportingSuppressed = previous_suppression;
   flushJttyDecodeLines();
   finishJttyDecodeUi();
 }

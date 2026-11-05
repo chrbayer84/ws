@@ -356,6 +356,7 @@ set (wsjtx_CXXSRCS
   widgets/qsymonitor.cpp
   widgets/LanguageMenu.cpp
   widgets/mainwindow_jtty.cpp
+  lib/conv/ConversationalCallsignReporter.cpp
   Modulator/JttyTxStream.cpp
   widgets/MMTTYIF.cpp
   lib/rtty/rtty_baudot.cpp
