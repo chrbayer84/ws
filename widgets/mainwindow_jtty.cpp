@@ -1736,19 +1736,24 @@ void MainWindow::completeJttyTxEnqueue(qint64 requestId, QString const& message,
 
   QTextCursor cursor = ui->decodedTextBrowser2->textCursor();
   cursor.movePosition(QTextCursor::End);
-  QTextCharFormat originalFormat = cursor.charFormat();
+  QFont const txFont = ui->decodedTextBrowser2->contentFont();
+  QColor const txDefaultFg = ui->decodedTextBrowser2->palette().color(QPalette::Text);
+  QTextCharFormat txBaseFormat = jttyDisplayFormat(
+      txFont, false, cqHighlightBackground(m_config),
+      cqHighlightForeground(m_config), txDefaultFg);
+  txBaseFormat.setFontWeight(QFont::Normal);
   if (cursor.position() > 0) {
-    cursor.setCharFormat(originalFormat);
+    cursor.setCharFormat(txBaseFormat);
     cursor.insertText(QStringLiteral("\n"));
   }
-  QTextCharFormat format = originalFormat;
+  QTextCharFormat format = txBaseFormat;
   format.setBackground(QBrush(QColor(Qt::yellow)));
   format.setForeground(QBrush(QColor(Qt::black)));   // readable in dark style too
   cursor.setCharFormat(format);
   cursor.insertText(formatJttyTxLine(QDateTime::currentDateTimeUtc(),
                                      ui->TxFreqSpinBox_2->value(),
                                      Jtty::wrapMessage(message)));
-  cursor.setCharFormat(originalFormat);  // Restore original format completely
+  cursor.setCharFormat(txBaseFormat);  // Restore normal (non-bold) text format
   ui->decodedTextBrowser2->setTextCursor(cursor);
   ui->decodedTextBrowser2->ensureCursorVisible();
 
