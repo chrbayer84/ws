@@ -46,7 +46,7 @@ namespace
       for (std::size_t offset = begin; offset < end; offset += 480) {
         int const count = int (std::min<std::size_t> (480, end - offset));
         decoder.process (audio.data () + offset, count, qint64 (offset - begin),
-                         0, 1000, int (center) - 10, int (center) + 10,
+                         0, 1000, 200, 2800,
                          float (center), 50.0f);
         for (auto const & update : decoder.takeUpdates ()) {
           if (update.complete) completed += update.text;
@@ -102,7 +102,7 @@ int main ()
     for (std::size_t offset = 0; offset < audio.size (); offset += 480) {
       int const count = int (std::min<std::size_t> (480, audio.size () - offset));
       decoder.process (audio.data () + offset, count, qint64 (offset),
-                       0, 1000, 990, 1010, 1000.0f, 50.0f);
+                       0, 1000, 200, 2800, 1000.0f, 50.0f);
       for (auto const & update : decoder.takeUpdates ()) {
         if (update.complete && update.text.size () >= 3) {
           ++complete_count;

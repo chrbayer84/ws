@@ -1208,6 +1208,9 @@ private:
   Q_SLOT void on_comboBoxDecoder_currentIndexChanged(int index);
   Q_SLOT void on_cbReverse_toggled(bool checked);
   Q_SLOT void on_sbSquelch_valueChanged(int val);
+  Q_SLOT void on_cbPskBrowser_toggled(bool checked);
+  Q_SLOT void on_sbPskChannels_valueChanged(int val);
+  Q_SLOT void on_cbPskDynamic_toggled(bool checked);
   void updateConversationalSubmodeControls();
   Q_SLOT void on_RxFreqSpinBox_2_valueChanged(int n);
   Q_SLOT void on_TxFreqSpinBox_2_valueChanged(int n);
@@ -1252,6 +1255,7 @@ private:
   bool psk_decode(int k, int istart0 = -1, int istop = -1);
   bool cw_decode(int k, int istart0 = -1, int istop = -1);
   void reportConversationalCalls(QString const& mode, QVector<Conversational::DecodedMessage> const& messages);
+  void updatePskBrowserDecoder();
   bool isConversationalMode() const { return m_mode == "JTTY" || m_mode == "RTTY" || m_mode == "PSK31" || m_mode == "CW"; }
   void execute_jtty_tx(qint64 requestId, QString message);
   void execute_jtty_tones(qint64 requestId, QString const& message,
@@ -1393,6 +1397,9 @@ private:
   bool m_pskQpsk {false};
   bool m_pskReverse {false};
   int m_pskSquelch {5};
+  bool m_pskMultichannel {true};
+  int m_pskBrowserChannels {30};
+  bool m_pskDynamic {false};
 
   QString m_cwSubmode {"CW-20"};
   int m_cwWpm {20};

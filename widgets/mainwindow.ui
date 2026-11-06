@@ -3726,6 +3726,49 @@ Double-click to reset to the standard 73 message</string>
                 </widget>
                </item>
                <item>
+                <widget class="QCheckBox" name="cbPskBrowser">
+                 <property name="toolTip">
+                  <string>Decode multiple PSK signals across the passband</string>
+                 </property>
+                 <property name="text">
+                  <string>Browser</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_pskChannels">
+                 <property name="text">
+                  <string>Ch:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QSpinBox" name="sbPskChannels">
+                 <property name="toolTip">
+                  <string>Maximum number of PSK browser channels</string>
+                 </property>
+                 <property name="minimum">
+                  <number>1</number>
+                 </property>
+                 <property name="maximum">
+                  <number>64</number>
+                 </property>
+                 <property name="value">
+                  <number>30</number>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QCheckBox" name="cbPskDynamic">
+                 <property name="toolTip">
+                  <string>Track PSK carriers dynamically instead of using fixed slots</string>
+                 </property>
+                 <property name="text">
+                  <string>Dynamic</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
                 <spacer name="horizontalSpacer_submode3">
                  <property name="orientation">
                   <enum>Qt::Horizontal</enum>

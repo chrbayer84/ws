@@ -371,7 +371,8 @@ set (wsjtx_CXXSRCS
   lib/psk/psk_varicode.cpp
   lib/psk/psk_viterbi.cpp
   lib/psk/psk_modem.cpp
-  lib/psk/psk_multi_demod.cpp
+  lib/psk/psk_carrier_detector.cpp
+  lib/psk/psk_browser.cpp
   lib/cw/cw_modem.cpp
   lib/cw/cw_demod.cpp
   lib/cw/cw_multi_demod.cpp

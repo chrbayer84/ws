@@ -32,7 +32,7 @@ namespace
 namespace Psk {
 
 Decoder::Decoder()
-  : channels_(PskMultiDemod::MAX_CHANNELS)
+  : channels_(PskBrowser::MAX_CHANNELS + 1)
 {
 }
 
@@ -48,7 +48,7 @@ void Decoder::begin(qint64 sessionId, qint64 gridOrigin, qint64 firstSearch, int
   sampleBase_ = 0;
   chunkStartSample_ = firstSearch;
 
-  multiDemod_.reset();
+  browser_.reset();
   completedBuffer_.clear ();
   lastCompletionSample_ = -1;
 
@@ -61,6 +61,16 @@ void Decoder::rewind(qint64 firstSearch)
   sampleBase_ += nextRequiredSample_;
   nextRequiredSample_ = firstSearch;
   chunkStartSample_ = sampleBase_ + firstSearch;
+}
+
+void Decoder::configureBrowser(bool enabled, int channels, bool dynamic)
+{
+  auto config = browser_.config();
+  config.enabled = enabled;
+  config.channels = channels;
+  config.maxCarriers = channels;
+  config.mode = dynamic ? PskBrowser::Mode::Dynamic : PskBrowser::Mode::FixedSlots;
+  browser_.configure(config);
 }
 
 void Decoder::setSubmode(const QString& submode)
@@ -76,18 +86,18 @@ void Decoder::setSubmode(const QString& submode)
   else if (submode == "QPSK250") { baud = 250.0; qpsk = true; }
   else { baud = 31.25; qpsk = false; }
 
-  multiDemod_.setBaud(baud);
-  multiDemod_.setQpsk(qpsk);
+  browser_.setBaud(baud);
+  browser_.setQpsk(qpsk);
 }
 
 void Decoder::setReverse(bool rev)
 {
-  multiDemod_.setReverse(rev);
+  browser_.setReverse(rev);
 }
 
 void Decoder::setSquelch(double s)
 {
-  multiDemod_.setSquelch(s);
+  browser_.setSquelch(s);
 }
 
 int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
@@ -102,34 +112,27 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   chunkStartSample_ = sampleBase_ + firstSample;
   qint64 const now = chunkStartSample_ + count;
 
-  // Multi-Demod: Channel 0 is locked onto centerFrequency; the remaining
-  // channels cover the narrow bank passed by the caller.
-  multiDemod_.setCenterFrequency(centerFrequency);
-  multiDemod_.setFrequencyRange(lowFrequency, highFrequency);
-  multiDemod_.rxProcess(samples, count);
+  // Channel 0 always follows the selected RX tone. Browser results use
+  // channels 1..N and only exist while a real carrier is being decoded.
+  browser_.setCenterFrequency(centerFrequency);
+  browser_.setFrequencyRange(lowFrequency, highFrequency);
+  browser_.process(samples, count);
 
-  auto decodes = multiDemod_.takeDecodes();
-  // Prefer the strongest channel when several channels see the same signal.
-  std::sort(decodes.begin(), decodes.end(),
-            [] (PskMultiDemod::DecodeResult const& lhs,
-                PskMultiDemod::DecodeResult const& rhs) {
-              return lhs.snr > rhs.snr;
-            });
-
+  auto decodes = browser_.takeResults();
   for (auto const& decode : decodes) {
-    auto& ch = channels_[decode.channelId];
+    int const channelId = decode.channelId;
+    if (channelId < 0 || channelId >= static_cast<int>(channels_.size ())) {
+      continue;
+    }
+    auto& ch = channels_[channelId];
     ch.lastTextSample = now;
-    flushChannelMessage(decode.channelId, decode, false);
+    flushChannelMessage(channelId, decode.frequency, decode.text, decode.snr, false);
   }
 
-  for (int i = 0; i < PskMultiDemod::MAX_CHANNELS; ++i) {
+  for (int i = 0; i < static_cast<int>(channels_.size ()); ++i) {
     if (channels_[i].active && now - channels_[i].lastTextSample > idleSamples) {
-      PskMultiDemod::DecodeResult dummy;
-      dummy.channelId = i;
-      dummy.frequency = channels_[i].frequency;
-      dummy.snr = 0;
-      dummy.complete = true;
-      flushChannelMessage(i, dummy, true);
+      auto& ch = channels_[i];
+      flushChannelMessage(i, ch.frequency, std::string {}, 0.0, true);
     }
   }
 
@@ -139,22 +142,30 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
   return count; // Number of samples consumed
 }
 
-void Decoder::flushChannelMessage(int channelId, const PskMultiDemod::DecodeResult& decode, bool complete)
+void Decoder::flushChannelMessage(int channelId, double frequency,
+                                   std::string const& text, double snr,
+                                   bool complete)
 {
-  if (channelId < 0 || channelId >= PskMultiDemod::MAX_CHANNELS) return;
+  if (channelId < 0 || channelId >= static_cast<int>(channels_.size ())) return;
   auto& ch = channels_[channelId];
+
+  if (!complete && ch.active && ch.lastTextSample > 0
+      && chunkStartSample_ - ch.lastTextSample > idleSamples) {
+    flushChannelMessage(channelId, ch.frequency, std::string {}, ch.snr, true);
+  }
 
   if (!ch.active && !complete) {
     ch.active = true;
     ch.messageId = generateMessageId(channelId);
     ch.startSeconds = chunkStartSample_ / 12000.0;
-    ch.frequency = decode.frequency;
+    ch.frequency = frequency;
     ch.text.clear();
   }
   if (!complete) {
-    ch.text += QString::fromStdString(decode.text);
+    ch.text += QString::fromStdString(text);
     ch.idleFrames = 0;
-    ch.snr = decode.snr;
+    ch.snr = snr;
+    ch.frequency = frequency;
   }
 
   if (ch.active) {
@@ -209,7 +220,7 @@ void Decoder::flushCompleted (qint64 now)
     std::size_t best = i;
     for (std::size_t j = i + 1; j < completedBuffer_.size (); ++j) {
       if (used[j]) continue;
-      if (std::abs (completedBuffer_[j].frequency - completedBuffer_[i].frequency) >= 30.0) continue;
+      if (std::abs (completedBuffer_[j].frequency - completedBuffer_[i].frequency) >= 15.0) continue;
       BufferedCompletion const& candidate = completedBuffer_[j];
       BufferedCompletion const& current = completedBuffer_[best];
       if (candidate.quality > current.quality

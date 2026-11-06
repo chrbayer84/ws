@@ -1,7 +1,7 @@
 #ifndef PSK_DECODER_HPP
 #define PSK_DECODER_HPP
 
-#include "lib/psk/psk_multi_demod.hpp"
+#include "lib/psk/psk_browser.hpp"
 #include "widgets/JttyMessages.hpp"
 #include <QVector>
 #include <QString>
@@ -28,6 +28,7 @@ public:
   // index wraps at a decode-period boundary.
   void rewind(qint64 firstSearch = 0);
 
+  void configureBrowser(bool enabled, int channels = 30, bool dynamic = false);
   void setSubmode(const QString& submode);
   void setReverse(bool rev);
   void setSquelch(double s);
@@ -48,7 +49,7 @@ private:
   qint64 sampleBase_ {0};
   qint64 chunkStartSample_ {0};
 
-  PskMultiDemod multiDemod_;
+  PskBrowser browser_;
 
   // State tracking for multi channels
   struct ChannelState {
@@ -66,7 +67,8 @@ private:
   QVector<Jtty::MessageUpdate> pendingUpdates_;
 
   qint64 generateMessageId(int channelId);
-  void flushChannelMessage(int channelId, const PskMultiDemod::DecodeResult& decode, bool complete);
+  void flushChannelMessage(int channelId, double frequency,
+                           std::string const& text, double snr, bool complete);
 
   struct BufferedCompletion
   {

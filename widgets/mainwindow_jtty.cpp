@@ -685,9 +685,8 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
   }
   float f0 = ui->RxFreqSpinBox_2->value();
   float ftol = ui->sbFtol_2->value();
-  int const pskCenter = qBound(200, qRound(f0), 4800);
-  int const nfa = qMax(100, pskCenter - 10);
-  int const nfb = qMin(5000, pskCenter + 10);
+  int const nfa = m_wideGraph->nStartFreq();
+  int const nfb = m_wideGraph->Fmax();
 
   if (istart0 >= 0) {
     m_pskDecoder.begin(1, 0, istart0);
@@ -2417,6 +2416,9 @@ void MainWindow::writeJttySettings()
   m_settings->setValue("PSK_Submode", m_pskSubmode);
   m_settings->setValue("PSK_Reverse", m_pskReverse);
   m_settings->setValue("PSK_Squelch", m_pskSquelch);
+  m_settings->setValue("PSK_Multichannel", m_pskMultichannel);
+  m_settings->setValue("PSK_BrowserChannels", m_pskBrowserChannels);
+  m_settings->setValue("PSK_BrowserDynamic", m_pskDynamic);
 }
 
 // In the "MainWindow" settings group
@@ -2429,6 +2431,9 @@ void MainWindow::readJttySettings()
   m_pskSubmode = m_settings->value("PSK_Submode", "PSK31").toString();
   m_pskReverse = m_settings->value("PSK_Reverse", false).toBool();
   m_pskSquelch = m_settings->value("PSK_Squelch", 5).toInt();
+  m_pskMultichannel = m_settings->value("PSK_Multichannel", true).toBool();
+  m_pskBrowserChannels = m_settings->value("PSK_BrowserChannels", 30).toInt();
+  m_pskDynamic = m_settings->value("PSK_BrowserDynamic", false).toBool();
   ui->sbSerialNumber_2->setValue (m_settings->value ("SerialNumberJTTY", 1).toInt ());
   int const jttyStyleIndex = qBound(0, m_settings->value("JTTY_MessageStyle", 0).toInt(),
                                     ui->comboBoxJttyStyle->count() - 1);
@@ -2619,9 +2624,7 @@ void MainWindow::on_actionPSK31_triggered()
   setup_status_bar (false);
   monitor(true);
   updateConversationalSubmodeControls();
-  m_pskDecoder.begin(1, 0, 0);
-  m_lastPskK = -1;
-  m_pskForceReset = false;
+  updatePskBrowserDecoder();
   statusChanged();
 }
 
@@ -2746,6 +2749,10 @@ void MainWindow::updateConversationalSubmodeControls()
   if (ui->cbReverse) ui->cbReverse->setVisible(showStrip);
   if (ui->label_squelch) ui->label_squelch->setVisible(showStrip);
   if (ui->sbSquelch) ui->sbSquelch->setVisible(showStrip);
+  if (ui->cbPskBrowser) ui->cbPskBrowser->setVisible(isPsk);
+  if (ui->label_pskChannels) ui->label_pskChannels->setVisible(isPsk && m_pskMultichannel);
+  if (ui->sbPskChannels) ui->sbPskChannels->setVisible(isPsk && m_pskMultichannel);
+  if (ui->cbPskDynamic) ui->cbPskDynamic->setVisible(isPsk && m_pskMultichannel);
 
   // F Tol is not needed for RTTY, PSK, or CW
   if (ui->sbFtol_2) ui->sbFtol_2->setVisible(!showStrip);
@@ -2799,6 +2806,19 @@ void MainWindow::updateConversationalSubmodeControls()
 
     m_pskSquelch = m_settings->value("PSK_Squelch", 5).toInt();
     if (ui->sbSquelch) ui->sbSquelch->setValue(m_pskSquelch);
+
+    if (ui->cbPskBrowser) {
+      QSignalBlocker blocker {ui->cbPskBrowser};
+      ui->cbPskBrowser->setChecked(m_pskMultichannel);
+    }
+    if (ui->sbPskChannels) {
+      QSignalBlocker blocker {ui->sbPskChannels};
+      ui->sbPskChannels->setValue(m_pskBrowserChannels);
+    }
+    if (ui->cbPskDynamic) {
+      QSignalBlocker blocker {ui->cbPskDynamic};
+      ui->cbPskDynamic->setChecked(m_pskDynamic);
+    }
 
     on_comboBoxSubmode_currentIndexChanged(idx);
     on_cbReverse_toggled(m_pskReverse);
@@ -2963,4 +2983,37 @@ void MainWindow::on_sbSquelch_valueChanged(int val)
     m_settings->setValue("CW_Squelch", m_cwSquelch);
     m_cwDecoder.setSquelch(static_cast<double>(val));
   }
+}
+
+void MainWindow::updatePskBrowserDecoder()
+{
+  m_pskDecoder.configureBrowser(m_pskMultichannel, m_pskBrowserChannels,
+                                m_pskDynamic);
+  m_pskDecoder.begin(1, 0, 0);
+  m_lastPskK = -1;
+  m_pskForceReset = false;
+}
+
+void MainWindow::on_cbPskBrowser_toggled(bool checked)
+{
+  m_pskMultichannel = checked;
+  m_settings->setValue("PSK_Multichannel", m_pskMultichannel);
+  if (ui->label_pskChannels) ui->label_pskChannels->setVisible(checked);
+  if (ui->sbPskChannels) ui->sbPskChannels->setVisible(checked);
+  if (ui->cbPskDynamic) ui->cbPskDynamic->setVisible(checked);
+  if (m_mode == "PSK31") updatePskBrowserDecoder();
+}
+
+void MainWindow::on_sbPskChannels_valueChanged(int val)
+{
+  m_pskBrowserChannels = val;
+  m_settings->setValue("PSK_BrowserChannels", m_pskBrowserChannels);
+  if (m_mode == "PSK31") updatePskBrowserDecoder();
+}
+
+void MainWindow::on_cbPskDynamic_toggled(bool checked)
+{
+  m_pskDynamic = checked;
+  m_settings->setValue("PSK_BrowserDynamic", m_pskDynamic);
+  if (m_mode == "PSK31") updatePskBrowserDecoder();
 }
