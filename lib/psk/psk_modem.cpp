@@ -271,7 +271,7 @@ void PskModem::rxSymbol(const cmplx& symbol) {
             if (std::abs(phaseErr) < (M_PI_ / 6.0)) {
                 double ferr = (phaseErr / TWOPI) * baud_;
                 freqError_ = decayavg(freqError_, ferr, 24);
-                double newFreq = frequency_ - freqError_ * 0.03;
+                double newFreq = frequency_ + freqError_ * 0.03;
                 if (std::abs(newFreq - baseFrequency_) <= 20.0) {
                     frequency_ = newFreq;
                     phaseInc_ = TWOPI * frequency_ / rxSampleRate_;
@@ -325,7 +325,7 @@ void PskModem::rxSymbol(const cmplx& symbol) {
             if (std::abs(phaseErr) < HALF_PI) {
                 double ferr = (phaseErr / TWOPI) * baud_;
                 freqError_ = decayavg(freqError_, ferr, 24);
-                double newFreq = frequency_ - freqError_ * 0.05;
+                double newFreq = frequency_ + freqError_ * 0.05;
                 if (std::abs(newFreq - baseFrequency_) <= 20.0) {
                     frequency_ = newFreq;
                     phaseInc_ = TWOPI * frequency_ / rxSampleRate_;

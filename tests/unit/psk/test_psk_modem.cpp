@@ -142,6 +142,33 @@ int main() {
         printf("SUCCESS: Decoded exact short message '%s'\n", shortMsg.c_str());
     }
 
+    // Test 6b: carrier acquisition from a small frequency offset
+    for (double offset : {0.5, 1.0, 2.0, 5.0, -5.0}) {
+        Psk::PskModem offsetTx;
+        std::vector<int16_t> offsetTxAudio =
+            offsetTx.modulateText(shortMsg, 1500.0 + offset);
+        std::vector<int16_t> offsetRxAudio;
+        offsetRxAudio.reserve(offsetTxAudio.size() / 4);
+        for (size_t i = 0; i < offsetTxAudio.size(); i += 4) {
+            offsetRxAudio.push_back(offsetTxAudio[i]);
+        }
+        Psk::PskModem offsetRx;
+        offsetRx.setFrequency(1500.0);
+        offsetRx.rxInit();
+        for (size_t i = 0; i < offsetRxAudio.size(); i += chunkSize) {
+            size_t count = std::min(chunkSize, offsetRxAudio.size() - i);
+            offsetRx.rxProcess(offsetRxAudio.data() + i, static_cast<int>(count));
+        }
+        std::string const decoded = offsetRx.takeOutput();
+        if (decoded.find(shortMsg) == std::string::npos) {
+            printf("FAIL: PSK31 AFC did not acquire %+.1f Hz offset: '%s'\n",
+                   offset, decoded.c_str());
+            all_passed = false;
+        } else {
+            printf("SUCCESS: PSK31 AFC acquired %+.1f Hz offset\n", offset);
+        }
+    }
+
     // Test 7: PSK63 (62.5 baud) loopback
     Psk::PskModem modem63;
     modem63.setBaud(62.5);
