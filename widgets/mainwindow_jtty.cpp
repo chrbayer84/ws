@@ -657,8 +657,14 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
     return jttyLineDateTimeUtc (tsync);
   };
 
-  bool const newAllFreqsSession = (k <= m_jttyLastAllFreqsK);
-  m_jttyLastAllFreqsK = k;
+  if (m_pskForceReset) {
+      m_pskDecoder.begin(1, 0, 0);
+      m_lastPskK = -1;
+      m_pskForceReset = false;
+  }
+
+  bool const newAllFreqsSession = (k <= m_lastPskK);
+  m_lastPskK = k;
   if (newAllFreqsSession) {
       flushJttyDecodeLines();
       m_jttyAllFreqsGroupStartPosition = -1;
@@ -672,13 +678,16 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
       m_jttyAllFreqLines.clear();
       m_bDecoded = false;
       m_jttyLastSavedWavK0 = -1;
-      
-      m_pskDecoder.begin(1, 0, 0); // Reset PSK decoder session
+
+      // Keep the demodulator locked across the period boundary. Only the
+      // sample-buffer cursor restarts at zero.
+      m_pskDecoder.rewind(0);
   }
   float f0 = ui->RxFreqSpinBox_2->value();
   float ftol = ui->sbFtol_2->value();
-  int nfa = m_wideGraph->nStartFreq();
-  int nfb = m_wideGraph->Fmax();
+  int const pskCenter = qBound(200, qRound(f0), 4800);
+  int const nfa = qMax(100, pskCenter - 10);
+  int const nfb = qMin(5000, pskCenter + 10);
 
   if (istart0 >= 0) {
     m_pskDecoder.begin(1, 0, istart0);
@@ -697,6 +706,11 @@ bool MainWindow::psk_decode(int k, int istart0, int istop)
   QVector<Jtty::MessageUpdate> updates = m_pskDecoder.takeUpdates();
   if (istart0 < 0) {
     reportConversationalCalls (QStringLiteral ("PSK31"), conversationalMessages (updates, jttyLineDateTimeUtc));
+  } else {
+    // A windowed decode is a temporary session; do not let its cursor leak
+    // into subsequent live monitoring.
+    m_pskDecoder.begin(1, 0, 0);
+    m_lastPskK = k;
   }
 
   bool anyEom {false};
@@ -1206,6 +1220,10 @@ void MainWindow::execute_psk_tx(qint64 requestId, QString message, bool isFinal)
     message += "\r\n";
   }
 
+  if (m_pskTxFeedTimer) m_pskTxFeedTimer->stop();
+  m_pskTxStreaming = false;
+  m_pskTxPendingSamples.clear();
+
   float f0 = ui->TxFreqSpinBox_2->value() - m_XIT;
 
   if (!m_pskTxModem) {
@@ -1247,9 +1265,31 @@ void MainWindow::execute_psk_tx(qint64 requestId, QString message, bool isFinal)
     return;
   }
 
-  if (samples.size() > TxAudioQueue::defaultCapacity()) {
-    LOG_WARN("PSK31 transmit FIFO capacity precheck failed; rejecting PCM enqueue");
-    Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+  if (!useTciAudio && samples.size() > TxAudioQueue::defaultCapacity()) {
+    // Stream long PSK messages through the shared 60 s TX FIFO as it drains.
+    m_pskTxStreaming = true;
+    m_pskTxStreamEpoch = m_jttyTxQueueEpoch;
+    m_pskTxStreamRequestId = requestId;
+    m_pskTxStreamTotal = samples.size();
+    m_pskTxStreamMessage = message;
+    m_pskTxStreamNewSession = newSession;
+    m_pskTxPendingOffset = 0;
+    m_pskTxPendingSamples = samples;
+
+    if (!enqueuePskTxChunk(true, false)) {
+      m_pskTxStreaming = false;
+      m_pskTxPendingSamples.clear();
+      Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::QueueFull);
+      if (newSession) advanceJttyTxQueueEpoch();
+      return;
+    }
+    if (m_pskTxStreaming) {
+      if (!m_pskTxFeedTimer) {
+        m_pskTxFeedTimer = new QTimer(this);
+        connect(m_pskTxFeedTimer, &QTimer::timeout, this, &MainWindow::feedPskTxChunk);
+      }
+      m_pskTxFeedTimer->start(100);
+    }
     return;
   }
 
@@ -1285,6 +1325,55 @@ void MainWindow::execute_psk_tx(qint64 requestId, QString message, bool isFinal)
   }
 
   completeJttyTxEnqueue(requestId, message, enqueueProgress, newSession, useTciAudio);
+}
+
+bool MainWindow::enqueuePskTxChunk(bool first, bool useTciAudio)
+{
+  if (!m_pskTxStreaming || useTciAudio) return false;
+  qint64 const remaining = m_pskTxStreamTotal - m_pskTxPendingOffset;
+  if (remaining <= 0) {
+    m_pskTxStreaming = false;
+    m_pskTxPendingSamples.clear();
+    if (m_pskTxFeedTimer) m_pskTxFeedTimer->stop();
+    return false;
+  }
+
+  qint64 const room = m_jttyTxQueue->capacity() - m_jttyTxQueue->progress().queued_samples;
+  if (room <= 0) return false;
+  qint64 const count = std::min(room, remaining);
+  QVector<qint16> const chunk = m_pskTxPendingSamples.mid(
+    int(m_pskTxPendingOffset), int(count));
+  auto const result = m_jttyTxQueue->enqueue(chunk, m_pskTxStreamEpoch);
+  if (!result.accepted) return false;
+
+  m_pskTxPendingOffset += count;
+  TxAudioQueueProgress progress = result.progress;
+  progress.total_samples = m_pskTxStreamTotal;
+  if (first) {
+    progress.queued_samples = m_pskTxStreamTotal;
+    completeJttyTxEnqueue(m_pskTxStreamRequestId, m_pskTxStreamMessage,
+                          progress, m_pskTxStreamNewSession, false);
+  } else {
+    m_jttyTxQueueProgress = progress;
+  }
+
+  if (m_pskTxPendingOffset >= m_pskTxStreamTotal) {
+    m_pskTxStreaming = false;
+    m_pskTxPendingSamples.clear();
+    if (m_pskTxFeedTimer) m_pskTxFeedTimer->stop();
+  }
+  return true;
+}
+
+void MainWindow::feedPskTxChunk()
+{
+  if (!m_pskTxStreaming) {
+    if (m_pskTxFeedTimer) m_pskTxFeedTimer->stop();
+    return;
+  }
+  while (m_pskTxStreaming && enqueuePskTxChunk(false, false)) {
+  }
+  if (!m_pskTxStreaming && m_pskTxFeedTimer) m_pskTxFeedTimer->stop();
 }
 
 void MainWindow::execute_cw_tx(qint64 requestId, QString message, bool isFinal)
@@ -1746,6 +1835,9 @@ void MainWindow::interruptJttyTx()
 {
   if (m_cwTxFeedTimer) m_cwTxFeedTimer->stop();
   m_cwTxStreaming = false;
+  if (m_pskTxFeedTimer) m_pskTxFeedTimer->stop();
+  m_pskTxStreaming = false;
+  m_pskTxPendingSamples.clear();
   if (!isConversationalMode() || !m_jttyTxActive) {
     return;
   }
@@ -1864,6 +1956,9 @@ void MainWindow::handleJttyTxWatchdog()
 
 void MainWindow::resetJttyTxState()
 {
+  if (m_pskTxFeedTimer) m_pskTxFeedTimer->stop();
+  m_pskTxStreaming = false;
+  m_pskTxPendingSamples.clear();
   m_jttyTxWatchdog.stop();
   m_jttyTxActive = false;
   m_jttyTxQueueProgress = {};
@@ -1885,6 +1980,8 @@ void MainWindow::jtty_again()
   qApp->processEvents();                                //Update the DecodeButton highlight
   bool const previous_suppression = m_conversationalReportingSuppressed;
   m_conversationalReportingSuppressed = true;
+  m_pskForceReset = true;
+  m_jttyLastAllFreqsK = -1;
   replayJttyFrames (dec_data.params.kin, [this] (int k) {
     if (m_mode == "RTTY") rtty_decode(k); else if (m_mode == "PSK31") psk_decode(k); else jtty_decode(k);
     return false;
@@ -2090,14 +2187,30 @@ void MainWindow::handleMmttyTxString(QString message)
 
   qint64 const requestId = ++m_jttyTxRequestId;
   m_mmttyJttyOutput.submit(requestId);
+  auto dispatchConversationalText = [this, requestId] (QString const& text) {
+    if (m_mode == "RTTY") {
+      execute_rtty_tx(requestId, text, true);
+    } else if (m_mode == "PSK31") {
+      execute_psk_tx(requestId, text, true);
+    } else if (m_mode == "CW") {
+      execute_cw_tx(requestId, text, true);
+    } else {
+      execute_jtty_tx(requestId, text);
+    }
+  };
   if (compiled.status == Jtty::N1mmCompileStatus::Literal) {
-    execute_jtty_tx(requestId, compiled.literalText);
+    dispatchConversationalText(compiled.literalText);
     return;
   }
   if (compiled.status == Jtty::N1mmCompileStatus::Error) {
     logText(QStringLiteral("MMTTY/N1MM tagged JTTY request %1 rejected: %2")
             .arg(requestId).arg(compiled.error));
     Q_EMIT jttyTextRejected(requestId, JttyTxRejectReason::EncodingFailed);
+    return;
+  }
+
+  if (m_mode != "JTTY") {
+    dispatchConversationalText(compiled.canonicalText);
     return;
   }
 
@@ -2407,6 +2520,8 @@ void MainWindow::on_actionRTTY_triggered()
   setup_status_bar (false);
   monitor(true);
   updateConversationalSubmodeControls();
+  m_rttyDecoder.begin(1, 0, 0);
+  m_jttyLastAllFreqsK = -1;
   statusChanged();
 }
 
@@ -2459,6 +2574,7 @@ void MainWindow::on_actionJTTY_triggered()
   setup_status_bar (false);
   monitor(true);
   updateConversationalSubmodeControls();
+  m_jttyLastAllFreqsK = -1;
   statusChanged();
 }
 
@@ -2503,6 +2619,9 @@ void MainWindow::on_actionPSK31_triggered()
   setup_status_bar (false);
   monitor(true);
   updateConversationalSubmodeControls();
+  m_pskDecoder.begin(1, 0, 0);
+  m_lastPskK = -1;
+  m_pskForceReset = false;
   statusChanged();
 }
 
@@ -2547,6 +2666,7 @@ void MainWindow::on_actionCW_triggered()
   setup_status_bar (false);
   monitor(true);
   m_cwDecoder.begin(1, 0, 0); // Initialize CW decoder session
+  m_jttyLastAllFreqsK = -1;
   updateConversationalSubmodeControls();
   statusChanged();
 }

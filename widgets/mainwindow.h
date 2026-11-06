@@ -1243,6 +1243,8 @@ private:
 #endif
   void execute_rtty_tx(qint64 requestId, QString message, bool isFinal = true);
   void execute_psk_tx(qint64 requestId, QString message, bool isFinal = true);
+  bool enqueuePskTxChunk(bool first, bool useTciAudio);
+  void feedPskTxChunk();
   void execute_cw_tx(qint64 requestId, QString message, bool isFinal = true);
   bool enqueueCwTxChunk(bool first, bool useTciAudio);
   void feedCwTxChunk();
@@ -1305,12 +1307,23 @@ private:
   QString m_cwTxStreamMessage;
   bool m_cwTxStreamNewSession {false};
   std::vector<float> m_cwTxChunkBuffer;
+  bool m_pskTxStreaming {false};
+  TxAudioQueueEpoch m_pskTxStreamEpoch {};
+  qint64 m_pskTxStreamRequestId {0};
+  qint64 m_pskTxStreamTotal {0};
+  qint64 m_pskTxPendingOffset {0};
+  QString m_pskTxStreamMessage;
+  bool m_pskTxStreamNewSession {false};
+  QVector<qint16> m_pskTxPendingSamples;
+  QTimer* m_pskTxFeedTimer {nullptr};
   bool m_jttyTxActive {false};
   bool m_jttyTxUsesTciAudio {false};
   std::unique_ptr<Rtty::RttyModem> m_rttyTxModem;
   std::unique_ptr<Psk::PskModem> m_pskTxModem;
   Rtty::Decoder m_rttyDecoder;
   Psk::Decoder m_pskDecoder;
+  int m_lastPskK = -1;
+  bool m_pskForceReset {false};
   TxAudioQueueEpoch m_jttyTxQueueEpoch {};;
   TxAudioQueueProgress m_jttyTxQueueProgress {};
   struct PendingJttyTciMessage
