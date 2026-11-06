@@ -144,6 +144,14 @@ int main ()
            "selected-tone primary decoder should work independently");
   }
   {
+    std::string const message = "WA4YA DE WA4YA GE";
+    auto const audio = make_audio (message, 1427.0);
+    check (joined (decode (audio, 1500.0, false)) == message,
+           "fixed browser should recover the first character from audio history");
+    check (joined (decode (audio, 1500.0, true)) == message,
+           "dynamic browser should recover the first character from audio history");
+  }
+  {
     std::vector<std::string> const messages {
       "CQ " + first_call + " CQ",
       "TESTING TESTING TESTING " + first_call,

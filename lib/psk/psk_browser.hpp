@@ -77,6 +77,7 @@ public:
   void setSquelch(double squelch);
 
   void reset();
+  void resetBrowserChannel(int channelId);
   void process(int16_t const* samples, int count);
   std::vector<Result> takeResults();
 
@@ -117,8 +118,11 @@ private:
   int slotCount_ {0};
   std::uint64_t lastDetectorSequence_ {0};
   std::int64_t samplesProcessed_ {0};
+  std::vector<int16_t> history_;
 
   void buildSlots();
+  void appendHistory(int16_t const* samples, int count);
+  void feedHistoryToProbes(Channel& channel);
   void resetChannel(Channel& channel);
   void resetPrimary(std::int64_t now);
   void retireChannel(Channel& channel);

@@ -133,6 +133,7 @@ int Decoder::process(qint16 const * samples, int count, qint64 firstSample,
     if (channels_[i].active && now - channels_[i].lastTextSample > idleSamples) {
       auto& ch = channels_[i];
       flushChannelMessage(i, ch.frequency, std::string {}, 0.0, true);
+      if (i != PskBrowser::PRIMARY_CHANNEL) browser_.resetBrowserChannel(i);
     }
   }
 

@@ -188,6 +188,7 @@ void PskBrowser::reset()
   detector_.reset();
   lastDetectorSequence_ = detector_.sequence();
   samplesProcessed_ = 0;
+  history_.clear();
   pendingResults_.clear();
 
   for (auto& channel : channels_) {
@@ -213,6 +214,7 @@ void PskBrowser::process(int16_t const* samples, int count)
 {
   if (!samples || count <= 0) return;
 
+  appendHistory(samples, count);
   std::int64_t const now = samplesProcessed_ + count;
 
   feedChannel(channels_[PRIMARY_CHANNEL], samples, count, now);
@@ -293,6 +295,35 @@ void PskBrowser::buildSlots()
   }
 }
 
+void PskBrowser::appendHistory(int16_t const* samples, int count)
+{
+  history_.insert(history_.end(), samples, samples + count);
+  std::size_t const maximum =
+    static_cast<std::size_t>(std::lround(sampleRate_));
+  if (history_.size() > maximum) {
+    history_.erase(history_.begin(),
+                   history_.begin() + (history_.size() - maximum));
+  }
+}
+
+void PskBrowser::feedHistoryToProbes(Channel& channel)
+{
+  if (history_.empty()) return;
+  for (auto& probe : channel.probes) {
+    probe.modem->rxProcess(history_.data(), static_cast<int>(history_.size()));
+    probe.peakMetric = std::max(probe.peakMetric, probe.modem->metric());
+    if (probe.modem->hasOutput()) {
+      probe.text += probe.modem->takeOutput();
+    }
+  }
+}
+
+void PskBrowser::resetBrowserChannel(int channelId)
+{
+  if (channelId <= PRIMARY_CHANNEL || channelId > MAX_CHANNELS) return;
+  retireChannel(channels_[channelId]);
+}
+
 void PskBrowser::resetChannel(Channel& channel)
 {
   channel.active = false;
@@ -365,7 +396,8 @@ void PskBrowser::startProbes(Channel& channel, double frequency)
   channel.frequency = frequency;
   channel.candidateFrequency = frequency;
   channel.peakMetric = 0.0;
-  channel.probeStartSample = samplesProcessed_;
+  channel.probeStartSample = samplesProcessed_ -
+    static_cast<std::int64_t>(history_.size());
   channel.lastOutputSample = -1;
   channel.probes.clear();
 
@@ -387,6 +419,8 @@ void PskBrowser::startProbes(Channel& channel, double frequency)
     probe.modem = makeModem(frequency);
     channel.probes.push_back(std::move(probe));
   }
+
+  feedHistoryToProbes(channel);
 }
 
 void PskBrowser::startCarrier(Channel& channel, double frequency)
