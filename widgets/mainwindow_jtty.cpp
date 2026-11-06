@@ -108,6 +108,16 @@ namespace
     return line + frequencyText + QStringLiteral("  Tx  ") + message;
   }
 
+  void removeTrailingEmptyBlock (QTextEdit * view)
+  {
+    QTextBlock last = view->document ()->lastBlock ();
+    if (last.isValid () && last.text ().isEmpty () && last.previous ().isValid ()) {
+      QTextCursor cursor {last};
+      cursor.movePosition (QTextCursor::StartOfBlock);
+      cursor.deletePreviousChar ();
+    }
+  }
+
   QVector<Conversational::DecodedMessage> conversationalMessages (
     QVector<Jtty::MessageUpdate> const& updates,
     std::function<QDateTime (float)> const& timeFor)
@@ -1727,6 +1737,7 @@ void MainWindow::completeJttyTxEnqueue(qint64 requestId, QString const& message,
   write_all("Tx", message);
   Q_EMIT jttyTextAccepted(requestId);
 
+  removeTrailingEmptyBlock (ui->decodedTextBrowser2);
   QTextCursor cursor = ui->decodedTextBrowser2->textCursor();
   cursor.movePosition(QTextCursor::End);
   QFont const txFont = ui->decodedTextBrowser2->contentFont();
@@ -1747,6 +1758,7 @@ void MainWindow::completeJttyTxEnqueue(qint64 requestId, QString const& message,
                                      ui->TxFreqSpinBox_2->value(),
                                      Jtty::wrapMessage(message)));
   cursor.setCharFormat(txBaseFormat);  // Restore normal (non-bold) text format
+  removeTrailingEmptyBlock (ui->decodedTextBrowser2);
   ui->decodedTextBrowser2->setTextCursor(cursor);
   ui->decodedTextBrowser2->ensureCursorVisible();
 

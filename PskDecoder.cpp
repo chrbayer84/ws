@@ -222,6 +222,12 @@ void Decoder::flushCompleted (qint64 now)
     for (std::size_t j = i + 1; j < completedBuffer_.size (); ++j) {
       if (used[j]) continue;
       if (std::abs (completedBuffer_[j].frequency - completedBuffer_[i].frequency) >= 15.0) continue;
+      // Only merge duplicate decodes produced around the same time by
+      // overlapping channels. Two separate messages on the same frequency
+      // (for example a long message followed quickly by a CQ) must both be
+      // emitted.
+      if (std::abs (completedBuffer_[j].sample - completedBuffer_[i].sample)
+          > idleSamples / 2) continue;
       BufferedCompletion const& candidate = completedBuffer_[j];
       BufferedCompletion const& current = completedBuffer_[best];
       if (candidate.quality > current.quality
