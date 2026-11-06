@@ -186,7 +186,6 @@ namespace
   }
 
   QColor const jttyStreamTextColor (0x1A, 0x1A, 0x1A);
-  QColor const jttyCqRuleColor (0x2E, 0x7D, 0x32);
 }
 
 extern "C" {
@@ -353,24 +352,7 @@ void MainWindow::insertJttyDisplayLine(QTextCursor& cursor, QString const& displ
   cursor.setBlockFormat(blockFormat);
   cursor.setBlockCharFormat(lineFormat);
 
-  if (isCQ && display.size() > 7 && display.at(6) == QLatin1Char {' '}) {
-    // Keep the timestamp/frequency columns identical to non-CQ lines by
-    // placing the CQ marker in the existing separator column.
-    QTextCharFormat ruleFormat = lineFormat;
-    ruleFormat.setForeground(QBrush(jttyCqRuleColor));
-    ruleFormat.setFontWeight(QFont::Bold);
-    cursor.insertText(display.left(6), lineFormat);
-    cursor.insertText(QStringLiteral("\u258C"), ruleFormat);
-    cursor.insertText(display.mid(7), lineFormat);
-  } else {
-    if (isCQ) {
-      QTextCharFormat ruleFormat = lineFormat;
-      ruleFormat.setForeground(QBrush(jttyCqRuleColor));
-      ruleFormat.setFontWeight(QFont::Bold);
-      cursor.insertText(QStringLiteral("\u258C "), ruleFormat);
-    }
-    cursor.insertText(display, lineFormat);
-  }
+  cursor.insertText(display, lineFormat);
 }
 
 void MainWindow::renderJttyAllFreqLines()
