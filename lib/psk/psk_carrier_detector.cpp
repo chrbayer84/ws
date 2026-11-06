@@ -60,6 +60,7 @@ struct CarrierDetector::Impl
   fftwf_complex* freqDomain {nullptr};
   fftwf_plan plan {nullptr};
   std::vector<CarrierCandidate> candidates;
+  std::vector<CarrierCandidate> peakCandidates;
 
   Impl(double rate, int nfft, int hop)
     : sampleRate {rate}, fftSize {nfft}, hopSize {hop}
@@ -98,6 +99,7 @@ struct CarrierDetector::Impl
     totalSamples = 0;
     sequence = 0;
     candidates.clear();
+    peakCandidates.clear();
   }
 
   double binWidth() const
@@ -170,6 +172,7 @@ struct CarrierDetector::Impl
     double const threshold = noise * std::pow(10.0, thresholdDb / 10.0);
 
     candidates.clear();
+    peakCandidates.clear();
     int i = lowBin;
     while (i <= highBin) {
       if (smoothed[static_cast<std::size_t>(i)] <= threshold) {
@@ -181,6 +184,40 @@ struct CarrierDetector::Impl
       while (regionEnd + 1 <= highBin &&
              smoothed[static_cast<std::size_t>(regionEnd + 1)] > threshold) {
         ++regionEnd;
+      }
+
+      int regionPeakBin = regionBegin;
+      for (int k = regionBegin; k <= regionEnd; ++k) {
+        if (smoothed[static_cast<std::size_t>(k)] >
+            smoothed[static_cast<std::size_t>(regionPeakBin)]) {
+          regionPeakBin = k;
+        }
+      }
+
+      {
+        double const peakPower =
+          smoothed[static_cast<std::size_t>(regionPeakBin)];
+        double const groupThreshold = peakPower * 0.75;
+        int groupBegin = regionPeakBin;
+        int groupEnd = regionPeakBin;
+        while (groupBegin > regionBegin &&
+               smoothed[static_cast<std::size_t>(groupBegin - 1)] >
+                 groupThreshold) {
+          --groupBegin;
+        }
+        while (groupEnd < regionEnd &&
+               smoothed[static_cast<std::size_t>(groupEnd + 1)] >
+                 groupThreshold) {
+          ++groupEnd;
+        }
+
+        CarrierCandidate candidate;
+        candidate.frequency = 0.5 * (groupBegin + groupEnd) * binWidth();
+        candidate.power = peakPower;
+        candidate.prominence = peakPower / noise;
+        candidate.bandwidth = (groupEnd - groupBegin) * binWidth();
+        candidate.peakBased = false;
+        candidates.push_back(candidate);
       }
 
       for (int peakBin = regionBegin; peakBin <= regionEnd; ++peakBin) {
@@ -223,7 +260,9 @@ struct CarrierDetector::Impl
         candidate.frequency = 0.5 * (groupBegin + groupEnd) * binWidth();
         candidate.power = peakPower;
         candidate.prominence = peakPower / noise;
-        candidates.push_back(candidate);
+        candidate.bandwidth = 0.0;
+        candidate.peakBased = true;
+        peakCandidates.push_back(candidate);
       }
 
       i = regionEnd + 1;
@@ -325,23 +364,56 @@ bool CarrierDetector::peakInRange(double lowHz, double highHz,
 std::vector<CarrierCandidate> CarrierDetector::detectAll(
   double minSeparationHz) const
 {
-  std::vector<CarrierCandidate> sorted = impl_->candidates;
-  std::sort(sorted.begin(), sorted.end(),
-            [] (CarrierCandidate const& lhs, CarrierCandidate const& rhs) {
-              return lhs.power > rhs.power;
-            });
+  // Use a group centre for a lone PSK signal. Split only when the group
+  // contains at least two strong peaks separated by a real channel spacing;
+  // this avoids turning PSK sidebands into fake carriers while still finding
+  // closely spaced stations.
+  if (minSeparationHz < 1.0) minSeparationHz = 1.0;
 
-  std::vector<CarrierCandidate> accepted;
-  for (auto const& candidate : sorted) {
-    bool tooClose = false;
-    for (auto const& existing : accepted) {
-      if (std::abs(candidate.frequency - existing.frequency) <
-          minSeparationHz) {
-        tooClose = true;
-        break;
+  std::vector<CarrierCandidate> selected;
+  for (auto const& group : impl_->candidates) {
+    double const halfWidth = 0.5 * group.bandwidth + impl_->bandwidth;
+    std::vector<CarrierCandidate> peaks;
+    for (auto const& peak : impl_->peakCandidates) {
+      if (std::abs(peak.frequency - group.frequency) <= halfWidth &&
+          peak.power >= 0.75 * group.power) {
+        peaks.push_back(peak);
       }
     }
-    if (!tooClose) accepted.push_back(candidate);
+
+    bool split = false;
+    for (std::size_t i = 0; i < peaks.size() && !split; ++i) {
+      for (std::size_t j = i + 1; j < peaks.size(); ++j) {
+        if (std::abs(peaks[i].frequency - peaks[j].frequency) >=
+            minSeparationHz) {
+          split = true;
+          break;
+        }
+      }
+    }
+
+    if (split) {
+      selected.insert(selected.end(), peaks.begin(), peaks.end());
+    } else {
+      selected.push_back(group);
+    }
+  }
+
+  std::sort(selected.begin(), selected.end(),
+            [] (CarrierCandidate const& lhs, CarrierCandidate const& rhs) {
+              return lhs.frequency < rhs.frequency;
+            });
+
+  // Frequency-ordered suppression keeps the outer carriers of a close pair
+  // instead of letting an overlap peak in the middle win on raw power.
+  std::vector<CarrierCandidate> accepted;
+  for (auto const& candidate : selected) {
+    if (!accepted.empty() &&
+        std::abs(candidate.frequency - accepted.back().frequency) <
+          minSeparationHz) {
+      continue;
+    }
+    accepted.push_back(candidate);
   }
   return accepted;
 }

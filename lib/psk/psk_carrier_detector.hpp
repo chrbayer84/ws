@@ -12,6 +12,8 @@ struct CarrierCandidate
   double frequency {0.0};
   double power {0.0};
   double prominence {0.0};
+  double bandwidth {0.0};
+  bool peakBased {false};
 };
 
 // FFT-based carrier detector. It is deliberately independent of Qt and of

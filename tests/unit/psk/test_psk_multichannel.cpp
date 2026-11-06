@@ -143,6 +143,43 @@ int main ()
     check (text.find (first_call) != std::string::npos,
            "selected-tone primary decoder should work independently");
   }
+  {
+    std::vector<std::string> const messages {
+      "CQ " + first_call + " CQ",
+      "TESTING TESTING TESTING " + first_call,
+      "CQ " + first_call + " CQ",
+      "TESTING TESTING TESTING " + first_call,
+      "CQ " + first_call + " CQ"};
+    std::vector<int16_t> audio;
+    for (auto const & message : messages) {
+      auto const part = make_audio (message, 1427.0);
+      audio.insert (audio.end (), part.begin (), part.end ());
+    }
+    auto const fixed = decode (audio, 1427.0, false);
+    check (fixed.size () == messages.size (),
+           "fixed browser should emit one completion per repeated transmission");
+    for (std::size_t i = 0; i < fixed.size () && i < messages.size (); ++i) {
+      if (fixed[i].text != messages[i]) {
+        std::printf ("fixed[%zu] = '%s' expected '%s'\n", i,
+                     fixed[i].text.c_str (), messages[i].c_str ());
+      }
+      check (fixed[i].text == messages[i],
+             "fixed browser should decode repeated messages without stale state");
+    }
+
+    auto const dynamic = decode (audio, 1427.0, true);
+    check (dynamic.size () == messages.size (),
+           "dynamic browser should emit one completion per repeated transmission");
+    for (std::size_t i = 0; i < dynamic.size () && i < messages.size (); ++i) {
+      if (dynamic[i].text != messages[i]) {
+        std::printf ("dynamic[%zu] = '%s' expected '%s'\n", i,
+                     dynamic[i].text.c_str (), messages[i].c_str ());
+      }
+      check (dynamic[i].text == messages[i],
+             "dynamic browser should decode repeated messages without stale state");
+    }
+  }
+
 
   {
     auto const audio = mix ({

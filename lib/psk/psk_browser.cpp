@@ -198,6 +198,7 @@ void PskBrowser::reset()
   primary.primary = true;
   primary.active = true;
   primary.frequency = config_.centerFrequency;
+  primary.idleResetDone = false;
   primary.modem = makeModem(primary.frequency);
 }
 
@@ -225,6 +226,7 @@ void PskBrowser::process(int16_t const* samples, int count)
     detector_.process(samples, count);
     if (detector_.sequence() != lastDetectorSequence_) {
       lastDetectorSequence_ = detector_.sequence();
+
       if (config_.mode == Mode::Dynamic) {
         discoverDynamic(now);
       } else {
@@ -235,6 +237,16 @@ void PskBrowser::process(int16_t const* samples, int count)
 
   std::int64_t const timeoutSamples =
     static_cast<std::int64_t>(std::lround(config_.timeoutSeconds * sampleRate_));
+  {
+    Channel& primary = channels_[PRIMARY_CHANNEL];
+    std::int64_t const primaryTimeout = std::max<std::int64_t>(
+      static_cast<std::int64_t>(0.75 * sampleRate_),
+      timeoutSamples - static_cast<std::int64_t>(0.5 * sampleRate_));
+    if (!primary.idleResetDone && primary.lastOutputSample >= 0 &&
+        now - primary.lastOutputSample > primaryTimeout) {
+      resetPrimary(now);
+    }
+  }
   for (int i = 1; i <= MAX_CHANNELS; ++i) {
     Channel& channel = channels_[i];
     if (!channel.active || channel.probing) continue;
@@ -285,6 +297,7 @@ void PskBrowser::resetChannel(Channel& channel)
 {
   channel.active = false;
   channel.probing = false;
+  channel.idleResetDone = false;
   channel.frequency = 0.0;
   channel.candidateFrequency = 0.0;
   channel.peakMetric = 0.0;
@@ -293,6 +306,20 @@ void PskBrowser::resetChannel(Channel& channel)
   channel.lastDetectSample = -1;
   channel.modem.reset();
   channel.probes.clear();
+}
+
+void PskBrowser::resetPrimary(std::int64_t now)
+{
+  Channel& primary = channels_[PRIMARY_CHANNEL];
+  if (!primary.modem) primary.modem = makeModem(config_.centerFrequency);
+  else {
+    primary.modem->setFrequency(config_.centerFrequency);
+    primary.modem->rxInit();
+  }
+  primary.frequency = config_.centerFrequency;
+  primary.peakMetric = 0.0;
+  primary.lastOutputSample = now;
+  primary.idleResetDone = true;
 }
 
 void PskBrowser::retireChannel(Channel& channel)
@@ -442,6 +469,7 @@ void PskBrowser::emitOutput(Channel& channel, std::int64_t now)
   std::string text = channel.modem->takeOutput();
   if (text.empty()) return;
   channel.lastOutputSample = now;
+  channel.idleResetDone = false;
   addResult(channel, std::move(text), now);
 }
 
@@ -473,7 +501,7 @@ void PskBrowser::discoverDynamic(std::int64_t now)
     std::max(8.0, config_.minSeparationHz * 0.7);
 
   for (auto const& candidate : candidates) {
-    if (isNearPrimary(candidate.frequency)) continue;
+    if (isNearPrimary(candidate)) continue;
 
     Channel* match = nullptr;
     for (int i = 1; i <= config_.maxCarriers; ++i) {
@@ -504,6 +532,18 @@ void PskBrowser::discoverDynamic(std::int64_t now)
 bool PskBrowser::isNearPrimary(double frequency) const
 {
   return std::abs(frequency - config_.centerFrequency) < 2.0;
+}
+
+bool PskBrowser::isNearPrimary(CarrierCandidate const& candidate) const
+{
+  double const distance = std::abs(candidate.frequency - config_.centerFrequency);
+  if (distance < 2.0) return true;
+  if (candidate.peakBased) {
+    // Sidebands of the selected-tone signal are local peaks, not independent
+    // stations. Suppress them around the primary carrier.
+    return distance < std::max(2.0, 0.7 * config_.bandwidthHz);
+  }
+  return false;
 }
 
 void PskBrowser::addResult(Channel const& channel, std::string text,

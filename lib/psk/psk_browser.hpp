@@ -44,7 +44,7 @@ public:
     bool qpsk {false};
     bool reverse {false};
     double squelch {5.0};
-    double minSeparationHz {15.0};
+    double minSeparationHz {25.0};
     double timeoutSeconds {2.0};
     double probeSeconds {3.0};
     double detectorThresholdDb {6.0};
@@ -95,6 +95,7 @@ private:
     bool primary {false};
     bool active {false};
     bool probing {false};
+    bool idleResetDone {false};
     int slotIndex {-1};
     double slotLow {0.0};
     double slotHigh {0.0};
@@ -119,6 +120,7 @@ private:
 
   void buildSlots();
   void resetChannel(Channel& channel);
+  void resetPrimary(std::int64_t now);
   void retireChannel(Channel& channel);
   void retireBrowserChannels();
   void initModem(PskModem& modem, double frequency) const;
@@ -132,6 +134,7 @@ private:
   void discoverFixed(std::int64_t now);
   void discoverDynamic(std::int64_t now);
   bool isNearPrimary(double frequency) const;
+  bool isNearPrimary(CarrierCandidate const& candidate) const;
   void addResult(Channel const& channel, std::string text, std::int64_t now);
 };
 

@@ -97,6 +97,17 @@ namespace
       : frequencyText + QStringLiteral(" ") + snrText + QStringLiteral("  ") + message;
   }
 
+  // Keep outgoing conversational messages aligned with received QSO lines:
+  // HHMMSS FFFF  Tx  message.
+  QString formatJttyTxLine (QDateTime const& timestampUtc, float frequency,
+                            QString const& message)
+  {
+    QString const time = Jtty::jttyLineTimeLabel (timestampUtc);
+    QString const frequencyText = QStringLiteral("%1").arg (qRound (frequency), 4);
+    QString line = time.isEmpty () ? QString {} : time + QLatin1Char {' '};
+    return line + frequencyText + QStringLiteral("  Tx  ") + message;
+  }
+
   QVector<Conversational::DecodedMessage> conversationalMessages (
     QVector<Jtty::MessageUpdate> const& updates,
     std::function<QDateTime (float)> const& timeFor)
@@ -1723,15 +1734,23 @@ void MainWindow::completeJttyTxEnqueue(qint64 requestId, QString const& message,
   write_all("Tx", message);
   Q_EMIT jttyTextAccepted(requestId);
 
-  ui->decodedTextBrowser2->insertText(" ");
   QTextCursor cursor = ui->decodedTextBrowser2->textCursor();
+  cursor.movePosition(QTextCursor::End);
   QTextCharFormat originalFormat = cursor.charFormat();
+  if (cursor.position() > 0) {
+    cursor.setCharFormat(originalFormat);
+    cursor.insertBlock();
+  }
   QTextCharFormat format = originalFormat;
   format.setBackground(QBrush(QColor(Qt::yellow)));
   format.setForeground(QBrush(QColor(Qt::black)));   // readable in dark style too
   cursor.setCharFormat(format);
-  cursor.insertText(Jtty::wrapMessage(message));
+  cursor.insertText(formatJttyTxLine(QDateTime::currentDateTimeUtc(),
+                                     ui->TxFreqSpinBox_2->value(),
+                                     Jtty::wrapMessage(message)));
   cursor.setCharFormat(originalFormat);  // Restore original format completely
+  ui->decodedTextBrowser2->setTextCursor(cursor);
+  ui->decodedTextBrowser2->ensureCursorVisible();
 
   handleJttyContestSerial(message);
 
