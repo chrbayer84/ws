@@ -1744,7 +1744,7 @@ void MainWindow::completeJttyTxEnqueue(qint64 requestId, QString const& message,
   txBaseFormat.setFontWeight(QFont::Normal);
   if (cursor.position() > 0) {
     cursor.setCharFormat(txBaseFormat);
-    cursor.insertText(QStringLiteral("\n"));
+    cursor.insertText(QString(QChar(QChar::LineSeparator)));
   }
   QTextCharFormat format = txBaseFormat;
   format.setBackground(QBrush(QColor(Qt::yellow)));
