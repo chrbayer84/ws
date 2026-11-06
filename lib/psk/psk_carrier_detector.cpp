@@ -364,48 +364,17 @@ bool CarrierDetector::peakInRange(double lowHz, double highHz,
 std::vector<CarrierCandidate> CarrierDetector::detectAll(
   double minSeparationHz) const
 {
-  // Use a group centre for a lone PSK signal. Split only when the group
-  // contains at least two strong peaks separated by a real channel spacing;
-  // this avoids turning PSK sidebands into fake carriers while still finding
-  // closely spaced stations.
   if (minSeparationHz < 1.0) minSeparationHz = 1.0;
 
-  std::vector<CarrierCandidate> selected;
-  for (auto const& group : impl_->candidates) {
-    double const halfWidth = 0.5 * group.bandwidth + impl_->bandwidth;
-    std::vector<CarrierCandidate> peaks;
-    for (auto const& peak : impl_->peakCandidates) {
-      if (std::abs(peak.frequency - group.frequency) <= halfWidth &&
-          peak.power >= 0.75 * group.power) {
-        peaks.push_back(peak);
-      }
-    }
-
-    bool split = false;
-    for (std::size_t i = 0; i < peaks.size() && !split; ++i) {
-      for (std::size_t j = i + 1; j < peaks.size(); ++j) {
-        if (std::abs(peaks[i].frequency - peaks[j].frequency) >=
-            minSeparationHz) {
-          split = true;
-          break;
-        }
-      }
-    }
-
-    if (split) {
-      selected.insert(selected.end(), peaks.begin(), peaks.end());
-    } else {
-      selected.push_back(group);
-    }
-  }
-
+  std::vector<CarrierCandidate> selected = impl_->candidates;
   std::sort(selected.begin(), selected.end(),
             [] (CarrierCandidate const& lhs, CarrierCandidate const& rhs) {
               return lhs.frequency < rhs.frequency;
             });
 
-  // Frequency-ordered suppression keeps the outer carriers of a close pair
-  // instead of letting an overlap peak in the middle win on raw power.
+  // One carrier per spectral group. A single PSK signal's modulation
+  // sidebands must not become fake channels; genuinely separate stations
+  // form separate groups.
   std::vector<CarrierCandidate> accepted;
   for (auto const& candidate : selected) {
     if (!accepted.empty() &&

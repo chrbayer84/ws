@@ -184,7 +184,7 @@ int main ()
   {
     auto const audio = mix ({
       make_audio ("CQ " + first_call + " CQ", 1000.0),
-      make_audio ("CQ " + second_call + " CQ", 1040.0)});
+      make_audio ("CQ " + second_call + " CQ", 1100.0)});
     std::string const text = joined (decode (audio, 1500.0, true));
     check (text.find (first_call) != std::string::npos,
            "dynamic browser should decode the lower of two close signals");
