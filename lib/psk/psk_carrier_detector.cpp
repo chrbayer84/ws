@@ -268,6 +268,37 @@ struct CarrierDetector::Impl
       i = regionEnd + 1;
     }
 
+    // A real PSK signal can appear as two strong sideband groups around a
+    // suppressed carrier. Merge groups that are closer than 1.5 PSK
+    // bandwidths into one carrier estimate, so the sidebands are not exposed
+    // as independent stations.
+    std::sort(candidates.begin(), candidates.end(),
+              [] (CarrierCandidate const& lhs, CarrierCandidate const& rhs) {
+                return lhs.frequency < rhs.frequency;
+              });
+    std::vector<CarrierCandidate> merged;
+    for (auto const& candidate : candidates) {
+      double const low = candidate.frequency - 0.5 * candidate.bandwidth;
+      double const high = candidate.frequency + 0.5 * candidate.bandwidth;
+      if (!merged.empty() &&
+          low - (merged.back().frequency -
+                 0.5 * merged.back().bandwidth) <
+            1.5 * bandwidth) {
+        CarrierCandidate& group = merged.back();
+        double const groupLow = group.frequency - 0.5 * group.bandwidth;
+        double const groupHigh = group.frequency + 0.5 * group.bandwidth;
+        double const newLow = std::min(groupLow, low);
+        double const newHigh = std::max(groupHigh, high);
+        group.frequency = 0.5 * (newLow + newHigh);
+        group.bandwidth = newHigh - newLow;
+        group.power += candidate.power;
+        group.prominence = std::max(group.prominence, candidate.prominence);
+      } else {
+        merged.push_back(candidate);
+      }
+    }
+    candidates.swap(merged);
+
     ++sequence;
   }
 };
