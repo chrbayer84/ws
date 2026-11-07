@@ -153,6 +153,10 @@ void PskModem::rxInit() {
     dcd_ = false;
     acquire_ = dcdBits_ * 2;
     hang_ = 0;
+    runLength_ = 0;
+    lastBit_ = -1;
+    haveText_ = false;
+    muted_ = false;
     inPwr_ = 0.0;
     sigPwr_ = 0.0;
     qualityCos_ = 0.0;
@@ -340,13 +344,27 @@ void PskModem::rxSymbol(const cmplx& symbol) {
 }
 
 void PskModem::rxBit(int bit) {
+    if (bit == lastBit_) {
+        ++runLength_;
+    } else {
+        lastBit_ = bit;
+        runLength_ = 1;
+    }
+
+    // Once a message has produced text, a long uninterrupted bit run is the
+    // PSK31 idle/postamble. Do not let the noise transition at its end become
+    // a trailing garbage character. The modem is re-initialised for the next
+    // message by the browser.
+    if (haveText_ && runLength_ >= 12) muted_ = true;
+
     shreg_ = (shreg_ << 1) | bit;
     if ((shreg_ & 3) == 0) {
         int c = Psk::varicode_decode(shreg_ >> 2);
         // Only accept printable ASCII (or \r, \n) while squelch is open
-        if (dcd_ && (metric_ >= squelch_ || squelch_ <= 0.0)) {
+        if (!muted_ && dcd_ && (metric_ >= squelch_ || squelch_ <= 0.0)) {
             if ((c >= 32 && c <= 126) || c == '\r' || c == '\n') {
                 rxChars_.push_back(static_cast<char>(c));
+                haveText_ = true;
             }
         }
         shreg_ = 0;

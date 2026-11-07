@@ -107,6 +107,10 @@ private:
     bool dcd_ = false;
     int acquire_ = 0;
     int hang_ = 0;
+    int runLength_ = 0;
+    int lastBit_ = -1;
+    bool haveText_ = false;
+    bool muted_ = false;
 
     double inPwr_ = 0.0;
     double sigPwr_ = 0.0;
